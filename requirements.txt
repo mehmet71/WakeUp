@@ -1,0 +1,31 @@
+# WakeUp Requirements
+# Install with: pip install -r requirements.txt
+
+# Core audio
+sounddevice>=0.5.5        # Latest: 0.5.5 (Jan 2026). No known CVEs.
+numpy>=2.0                # Latest stable: 2.x. No known CVEs.
+
+# Hotkeys — NOTE: 'keyboard' (0.13.5) is UNMAINTAINED since 2020.
+# pynput is the actively maintained alternative with the same API surface.
+pynput>=1.7.7             # Latest: 1.7.7. Actively maintained. No known CVEs.
+
+# System tray icon
+pystray>=0.19.5           # Latest: 0.19.5. No known CVEs.
+# Pillow: CVE-2023-50447 (ACE via ImageMath.eval, patched 10.2.0)
+#         CVE-2025-48379 (heap overflow DDS write, patched 11.3.0)
+# Pin to 12.x to be clear of both.
+Pillow>=12.0.0            # Latest: 12.2.0 (Apr 2026). Clean.
+
+# Windows window management
+pywin32>=310              # Latest: 310 (Jul 2025). No known CVEs.
+
+# Process introspection (optional but recommended)
+psutil>=7.2.0             # Latest: 7.2.2 (Jan 2026). No known CVEs.
+
+# -------------------------------------------------------
+# Voice keyword detection (optional - Phase 3 prep)
+# Uncomment when you're ready to set up voice commands.
+# Then download a model from https://alphacephei.com/vosk/models
+# Recommended: vosk-model-small-en-us-0.15 (~50 MB)
+# -------------------------------------------------------
+# vosk>=0.3.45

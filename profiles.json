@@ -1,0 +1,193 @@
+{
+  "settings": {
+    "default_profile": "work",
+    "clap_detection": {
+      "enabled": true,
+      "claps_required": 2,
+      "window_ms": 900,
+      "threshold": 0.15,
+      "cooldown_s": 2.0,
+      "_note_threshold": "Lower = more sensitive. 0.15 for quiet rooms, 0.35 for noisy."
+    },
+    "voice": {
+      "enabled": false,
+      "_note": "Set enabled=true after downloading a Vosk model.",
+      "model_path": "models/vosk-model-small-en-us",
+      "_model_url": "https://alphacephei.com/vosk/models  →  vosk-model-small-en-us-0.15",
+      "sample_rate": 16000
+    }
+  },
+  "profiles": {
+    "work": {
+      "trigger_keywords": [
+        "wake up",
+        "daddy's home",
+        "work mode",
+        "let's go"
+      ],
+      "hotkey": "ctrl+alt+w",
+      "message": "Good morning. Initializing work environment.",
+      "apps": [
+        {
+          "name": "VS Code",
+          "path": "%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe",
+          "args": [
+            "C:/Projects"
+          ],
+          "delay": 0,
+          "window": {
+            "monitor": 0,
+            "preset": "left-two-thirds"
+          }
+        },
+        {
+          "name": "Chrome",
+          "path": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+          "args": [
+            "--new-window",
+            "https://github.com"
+          ],
+          "delay": 0.5,
+          "window": {
+            "monitor": 0,
+            "preset": "right-third"
+          }
+        },
+        {
+          "name": "Outlook",
+          "path": "C:/Program Files/Microsoft Office/root/Office16/OUTLOOK.EXE",
+          "args": [],
+          "delay": 1.5,
+          "window": {
+            "monitor": 1,
+            "preset": "right-half"
+          }
+        }
+      ]
+    },
+    "focus": {
+      "trigger_keywords": [
+        "focus mode",
+        "deep work",
+        "go deep"
+      ],
+      "hotkey": "ctrl+alt+f",
+      "message": "Focus mode. Minimizing distractions.",
+      "apps": [
+        {
+          "name": "VS Code",
+          "path": "%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe",
+          "args": [],
+          "delay": 0,
+          "window": {
+            "monitor": 0,
+            "preset": "full"
+          }
+        },
+        {
+          "name": "Spotify",
+          "path": "%APPDATA%/Spotify/Spotify.exe",
+          "args": [],
+          "delay": 0.5,
+          "window": {
+            "monitor": 0,
+            "preset": "bottom-right",
+            "_note": "Moves to corner so it's out of the way"
+          }
+        }
+      ]
+    },
+    "creative": {
+      "trigger_keywords": [
+        "creative mode",
+        "design time",
+        "let's design"
+      ],
+      "hotkey": "ctrl+alt+c",
+      "message": "Creative mode. Welcome back.",
+      "apps": [
+        {
+          "name": "Figma",
+          "path": "%LOCALAPPDATA%/Figma/Figma.exe",
+          "args": [],
+          "delay": 0,
+          "window": {
+            "monitor": 0,
+            "preset": "left-half"
+          }
+        },
+        {
+          "name": "Chrome",
+          "path": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+          "args": [
+            "--new-window"
+          ],
+          "delay": 0.5,
+          "window": {
+            "monitor": 0,
+            "preset": "right-half"
+          }
+        }
+      ]
+    },
+    "gaming": {
+      "trigger_keywords": [
+        "game time",
+        "gaming mode"
+      ],
+      "hotkey": "ctrl+alt+g",
+      "message": "Switching to gaming mode. Have fun.",
+      "apps": [
+        {
+          "name": "Steam",
+          "path": "C:/Program Files (x86)/Steam/steam.exe",
+          "args": [],
+          "delay": 0,
+          "window": {
+            "monitor": 0,
+            "preset": "full"
+          }
+        },
+        {
+          "name": "Discord",
+          "path": "%LOCALAPPDATA%/Discord/Update.exe",
+          "args": [
+            "--processStart",
+            "Discord.exe"
+          ],
+          "delay": 1.0,
+          "window": {
+            "monitor": 1,
+            "preset": "full"
+          }
+        }
+      ]
+    }
+  },
+  "_preset_reference": {
+    "available_presets": [
+      "full",
+      "left-half",
+      "right-half",
+      "top-half",
+      "bottom-half",
+      "top-left",
+      "top-right",
+      "bottom-left",
+      "bottom-right",
+      "left-third",
+      "center-third",
+      "right-third",
+      "left-two-thirds",
+      "right-two-thirds"
+    ],
+    "custom_coordinates": {
+      "_example": "Instead of preset, specify x/y/w/h relative to the monitor's top-left corner",
+      "monitor": 0,
+      "x": 0,
+      "y": 0,
+      "w": 1920,
+      "h": 1080
+    }
+  }
+}
