@@ -75,7 +75,6 @@ class WakeUp:
         self._busy = False
         self._icon = None
 
-        # Build keyword → profile_name lookup
         self.keyword_map: dict[str, str] = {}
         for name, profile in self.profiles.items():
             for kw in profile.get("trigger_keywords", []):

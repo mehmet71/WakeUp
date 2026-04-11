@@ -23,9 +23,9 @@ PRESETS = [
 #  Theme                                                               #
 # ------------------------------------------------------------------ #
 
-BG       = "#1a1a1a"
-BG2      = "#242424"
-BG3      = "#2e2e2e"
+BG       = "#1e1e1e"
+BG2      = "#262626"
+BG3      = "#303030"
 ACCENT   = "#00b4d8"
 ACCENT2  = "#0077a8"
 FG       = "#e8e8e8"
@@ -36,7 +36,20 @@ BORDER   = "#383838"
 FONT     = ("Segoe UI", 10)
 FONT_SM  = ("Segoe UI", 9)
 FONT_B   = ("Segoe UI", 10, "bold")
-FONT_H   = ("Segoe UI", 13, "bold")
+FONT_H   = ("Segoe UI", 14, "bold")
+FONT_H2  = ("Segoe UI", 12, "bold")
+
+
+# ------------------------------------------------------------------ #
+#  View constants                                                      #
+# ------------------------------------------------------------------ #
+
+VIEW_HOME            = "home"
+VIEW_NEW_MODE_CHOICE = "new_mode_choice"
+VIEW_CAPTURE         = "capture"
+VIEW_REVIEW          = "review"
+VIEW_MODE_DETAIL     = "mode_detail"
+VIEW_ADVANCED        = "advanced"
 
 
 def apply_theme(root: tk.Tk):
@@ -112,6 +125,19 @@ def icon_btn(parent, text, command, style="TButton", width=None):
     if width:
         kw["width"] = width
     return ttk.Button(parent, **kw)
+
+
+def card_frame(parent, **pack_kw) -> tk.Frame:
+    """Styled card panel. Caller can pass pack kwargs."""
+    f = tk.Frame(parent, bg=BG2, padx=16, pady=12)
+    if pack_kw:
+        f.pack(**pack_kw)
+    return f
+
+
+def section_heading(parent, text: str):
+    """Large heading label for screen sections."""
+    tk.Label(parent, text=text, bg=BG, fg=FG, font=FONT_H).pack(anchor="w", pady=(0, 8))
 
 
 # ------------------------------------------------------------------ #
@@ -235,14 +261,16 @@ class WakeUpConfigUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("WakeUp — Config Editor")
-        self.geometry("960x660")
-        self.minsize(800, 500)
+        self.geometry("1060x720")
+        self.minsize(860, 540)
         apply_theme(self)
 
         self.config_data: dict = {}
         self.profiles: dict   = {}
         self._dirty = False
         self._current_profile: str | None = None
+        self._current_view: str = VIEW_HOME
+        self._draft_apps: list[dict] | None = None
 
         self._build_ui()
         self._load()
@@ -259,8 +287,13 @@ class WakeUpConfigUI(tk.Tk):
         topbar.pack(fill="x", side="top")
         topbar.pack_propagate(False)
 
-        tk.Label(topbar, text="WakeUp  Config Editor",
-                 bg=BG2, fg=FG, font=FONT_H).pack(side="left", padx=20)
+        tk.Label(topbar, text="WakeUp", bg=BG2, fg=FG,
+                 font=FONT_H).pack(side="left", padx=(20, 4))
+        tk.Label(topbar, text="Config Editor", bg=BG2, fg=FG2,
+                 font=FONT).pack(side="left")
+
+        self._unsaved_chip = tk.Label(topbar, text="● unsaved", bg=BG2,
+                                      fg="#e8a838", font=FONT_SM)
 
         self.save_btn = icon_btn(topbar, "💾  Save", self._save, style="Accent.TButton")
         self.save_btn.pack(side="right", padx=12, pady=10)
@@ -271,13 +304,13 @@ class WakeUpConfigUI(tk.Tk):
         main = tk.Frame(self, bg=BG)
         main.pack(fill="both", expand=True)
 
-        # Left panel — profile list
-        left = tk.Frame(main, bg=BG2, width=200)
+        # Left sidebar — mode list
+        left = tk.Frame(main, bg=BG2, width=220)
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
 
-        tk.Label(left, text="PROFILES", bg=BG2, fg=FG2, font=("Segoe UI", 8, "bold")).pack(
-            anchor="w", padx=14, pady=(14, 6))
+        tk.Label(left, text="MODES", bg=BG2, fg=FG2,
+                 font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=14, pady=(14, 6))
 
         list_frame = tk.Frame(left, bg=BG2)
         list_frame.pack(fill="both", expand=True, padx=6)
@@ -290,125 +323,147 @@ class WakeUpConfigUI(tk.Tk):
         self.profile_list.pack(fill="both", expand=True)
         self.profile_list.bind("<<ListboxSelect>>", self._on_profile_select)
 
-        # List action buttons
         list_btns = tk.Frame(left, bg=BG2)
         list_btns.pack(fill="x", padx=6, pady=8)
-        icon_btn(list_btns, "+ Add",    self._add_profile,    width=7).pack(side="left", padx=(0, 4))
-        icon_btn(list_btns, "⧉ Dupe",  self._dupe_profile,   width=7).pack(side="left", padx=(0, 4))
-        icon_btn(list_btns, "✕ Del",   self._delete_profile,
-                 style="Danger.TButton", width=6).pack(side="left")
+        icon_btn(list_btns, "+ New mode",
+                 lambda: self._show_view(VIEW_NEW_MODE_CHOICE),
+                 style="Accent.TButton").pack(fill="x")
 
         # Divider
         tk.Frame(main, bg=BORDER, width=1).pack(side="left", fill="y")
 
-        # Right panel — profile detail
-        self.right = tk.Frame(main, bg=BG)
-        self.right.pack(side="left", fill="both", expand=True)
+        # Right panel — view frame (cleared on view switch)
+        self._view_frame = tk.Frame(main, bg=BG)
+        self._view_frame.pack(side="left", fill="both", expand=True)
 
-        self._build_detail_panel(self.right)
+        self._show_view(VIEW_HOME)
 
-    def _build_detail_panel(self, parent):
-        scroll_canvas = tk.Canvas(parent, bg=BG, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=scroll_canvas.yview)
-        scroll_canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        scroll_canvas.pack(side="left", fill="both", expand=True)
+    # ---------------------------------------------------------------- #
+    #  View navigation                                                   #
+    # ---------------------------------------------------------------- #
 
-        self.detail = tk.Frame(scroll_canvas, bg=BG)
-        self.detail_window = scroll_canvas.create_window((0, 0), window=self.detail, anchor="nw")
+    def _show_view(self, view_name: str):
+        for child in self._view_frame.winfo_children():
+            child.destroy()
+        self._current_view = view_name
+        builder = getattr(self, f"_build_{view_name}", None)
+        if builder:
+            builder()
 
-        def _on_resize(e):
-            scroll_canvas.itemconfig(self.detail_window, width=e.width)
-        scroll_canvas.bind("<Configure>", _on_resize)
-        self.detail.bind("<Configure>",
-            lambda e: scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all")))
-        scroll_canvas.bind("<MouseWheel>",
-            lambda e: scroll_canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+    # ---------------------------------------------------------------- #
+    #  View builders                                                     #
+    # ---------------------------------------------------------------- #
 
-        # Profile name
-        name_row = tk.Frame(self.detail, bg=BG)
-        name_row.pack(fill="x", padx=28, pady=(22, 0))
-        tk.Label(name_row, text="Profile name", bg=BG, fg=FG2, font=FONT_SM).pack(anchor="w")
-        self.v_profile_name = tk.StringVar()
-        self.v_profile_name.trace_add("write", self._mark_dirty)
-        ttk.Entry(name_row, textvariable=self.v_profile_name, font=FONT_H, width=30).pack(
-            anchor="w", pady=(4, 0))
+    def _build_home(self):
+        container = tk.Frame(self._view_frame, bg=BG)
+        container.pack(fill="both", expand=True, padx=32, pady=24)
 
-        # Row: hotkey + message
-        mid_row = tk.Frame(self.detail, bg=BG)
-        mid_row.pack(fill="x", padx=28, pady=(16, 0))
-        mid_row.columnconfigure(1, weight=1)
-        mid_row.columnconfigure(3, weight=2)
+        section_heading(container, "Your modes")
 
-        tk.Label(mid_row, text="Hotkey", bg=BG, fg=FG2, font=FONT_SM).grid(
-            row=0, column=0, sticky="w", padx=(0, 8))
-        self.v_hotkey = tk.StringVar()
-        self.v_hotkey.trace_add("write", self._mark_dirty)
-        ttk.Entry(mid_row, textvariable=self.v_hotkey, width=16).grid(
-            row=0, column=1, sticky="w")
-        tk.Label(mid_row, text="  e.g. ctrl+alt+w", bg=BG, fg=FG2, font=FONT_SM).grid(
-            row=0, column=2, sticky="w")
+        if not self.profiles:
+            empty = tk.Frame(container, bg=BG)
+            empty.pack(fill="both", expand=True)
+            tk.Label(empty, text="No modes yet", bg=BG, fg=FG2,
+                     font=FONT_H2).pack(pady=(60, 8))
+            tk.Label(empty, text="Create a mode to launch your apps and arrange windows.",
+                     bg=BG, fg=FG2, font=FONT).pack()
+            icon_btn(empty, "Create your first mode",
+                     lambda: self._show_view(VIEW_NEW_MODE_CHOICE),
+                     style="Accent.TButton").pack(pady=(20, 0))
+            return
 
-        tk.Label(mid_row, text="Startup message", bg=BG, fg=FG2, font=FONT_SM).grid(
-            row=0, column=3, sticky="w", padx=(24, 8))
-        self.v_message = tk.StringVar()
-        self.v_message.trace_add("write", self._mark_dirty)
-        ttk.Entry(mid_row, textvariable=self.v_message, width=36).grid(
-            row=0, column=4, sticky="ew")
+        for name, profile in self.profiles.items():
+            apps = profile.get("apps", [])
+            hotkey = profile.get("hotkey", "")
+            info_parts = [f"{len(apps)} app{'s' if len(apps) != 1 else ''}"]
+            if hotkey:
+                info_parts.append(hotkey)
+            info_text = "  ·  ".join(info_parts)
 
-        # Keywords
-        kw_frame = tk.Frame(self.detail, bg=BG)
-        kw_frame.pack(fill="x", padx=28, pady=(16, 0))
-        tk.Label(kw_frame, text="Voice / keyword triggers  (one per line)",
-                 bg=BG, fg=FG2, font=FONT_SM).pack(anchor="w")
-        self.kw_text = dark_text(kw_frame, height=4)
-        self.kw_text.pack(fill="x", pady=(4, 0))
-        self.kw_text.bind("<<Modified>>", self._mark_dirty)
+            card = card_frame(container, fill="x", pady=(0, 8))
+            card.configure(cursor="hand2")
 
-        # Apps section
-        apps_header = tk.Frame(self.detail, bg=BG)
-        apps_header.pack(fill="x", padx=28, pady=(22, 0))
-        tk.Label(apps_header, text="Apps", bg=BG, fg=FG, font=FONT_B).pack(side="left")
+            tk.Label(card, text=name, bg=BG2, fg=FG, font=FONT_B,
+                     cursor="hand2").pack(anchor="w")
+            tk.Label(card, text=info_text, bg=BG2, fg=FG2, font=FONT_SM,
+                     cursor="hand2").pack(anchor="w", pady=(2, 0))
 
-        app_btns = tk.Frame(apps_header, bg=BG)
-        app_btns.pack(side="right")
-        icon_btn(app_btns, "↑ Up",      self._app_move_up,   width=6).pack(side="left", padx=2)
-        icon_btn(app_btns, "↓ Down",    self._app_move_down, width=6).pack(side="left", padx=2)
-        icon_btn(app_btns, "+ Add",     self._app_add,       width=6).pack(side="left", padx=2)
-        icon_btn(app_btns, "✎ Edit",    self._app_edit,      width=6).pack(side="left", padx=2)
-        icon_btn(app_btns, "✕ Remove",  self._app_delete,
-                 style="Danger.TButton", width=8).pack(side="left", padx=2)
+            def _on_click(_e, n=name):
+                self._current_profile = n
+                self._show_view(VIEW_MODE_DETAIL)
 
-        # Apps treeview
-        tree_frame = tk.Frame(self.detail, bg=BG)
-        tree_frame.pack(fill="x", padx=28, pady=(6, 24))
+            card.bind("<Button-1>", _on_click)
+            for child in card.winfo_children():
+                child.bind("<Button-1>", _on_click)
 
-        cols = ("name", "path", "delay", "monitor", "preset")
-        self.apps_tree = ttk.Treeview(tree_frame, columns=cols,
-                                       show="headings", height=8,
-                                       selectmode="browse")
-        self.apps_tree.heading("name",    text="Name")
-        self.apps_tree.heading("path",    text="Path")
-        self.apps_tree.heading("delay",   text="Delay")
-        self.apps_tree.heading("monitor", text="Monitor")
-        self.apps_tree.heading("preset",  text="Preset")
-        self.apps_tree.column("name",    width=130, minwidth=80)
-        self.apps_tree.column("path",    width=280, minwidth=120)
-        self.apps_tree.column("delay",   width=55,  minwidth=45, anchor="center")
-        self.apps_tree.column("monitor", width=65,  minwidth=50, anchor="center")
-        self.apps_tree.column("preset",  width=140, minwidth=80)
+    def _build_new_mode_choice(self):
+        container = tk.Frame(self._view_frame, bg=BG)
+        container.pack(fill="both", expand=True, padx=32, pady=24)
 
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical",   command=self.apps_tree.yview)
-        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.apps_tree.xview)
-        self.apps_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        section_heading(container, "Create a new mode")
 
-        self.apps_tree.grid(row=0, column=0, sticky="nsew")
-        vsb.grid(row=0, column=1, sticky="ns")
-        hsb.grid(row=1, column=0, sticky="ew")
-        tree_frame.rowconfigure(0, weight=1)
-        tree_frame.columnconfigure(0, weight=1)
+        cards = tk.Frame(container, bg=BG)
+        cards.pack(fill="x", pady=(16, 0))
 
-        self.apps_tree.bind("<Double-1>", lambda e: self._app_edit())
+        # Capture card
+        cap = card_frame(cards, fill="x", pady=(0, 12))
+        cap.configure(cursor="hand2")
+        tk.Label(cap, text="Capture current setup", bg=BG2, fg=FG,
+                 font=FONT_B, cursor="hand2").pack(anchor="w")
+        tk.Label(cap, text="Open your apps, arrange windows, then capture.\n"
+                           "Fastest way to create a mode.",
+                 bg=BG2, fg=FG2, font=FONT_SM, justify="left",
+                 cursor="hand2").pack(anchor="w", pady=(4, 0))
+
+        def _go_capture(_e=None):
+            self._show_view(VIEW_CAPTURE)
+        cap.bind("<Button-1>", _go_capture)
+        for child in cap.winfo_children():
+            child.bind("<Button-1>", _go_capture)
+
+        # Manual card
+        man = card_frame(cards, fill="x", pady=(0, 12))
+        man.configure(cursor="hand2")
+        tk.Label(man, text="Manual setup", bg=BG2, fg=FG,
+                 font=FONT_B, cursor="hand2").pack(anchor="w")
+        tk.Label(man, text="Start from scratch with full control over every detail.",
+                 bg=BG2, fg=FG2, font=FONT_SM, justify="left",
+                 cursor="hand2").pack(anchor="w", pady=(4, 0))
+
+        def _go_manual(_e=None):
+            name = self._unique_name("new-mode")
+            self.profiles[name] = {
+                "trigger_keywords": [], "hotkey": "", "message": "", "apps": []
+            }
+            self._current_profile = name
+            self._refresh_profile_list(select=name)
+            self._mark_dirty()
+            self._show_view(VIEW_MODE_DETAIL)
+        man.bind("<Button-1>", _go_manual)
+        for child in man.winfo_children():
+            child.bind("<Button-1>", _go_manual)
+
+        # Back link
+        back = tk.Label(container, text="← Back", bg=BG, fg=ACCENT,
+                        font=FONT, cursor="hand2")
+        back.pack(anchor="w", pady=(20, 0))
+        back.bind("<Button-1>", lambda _e: self._show_view(VIEW_HOME))
+
+    def _build_capture(self):
+        tk.Label(self._view_frame, text="Capture screen — coming soon",
+                 bg=BG, fg=FG2, font=FONT).pack(pady=60)
+
+    def _build_review(self):
+        tk.Label(self._view_frame, text="Review screen — coming soon",
+                 bg=BG, fg=FG2, font=FONT).pack(pady=60)
+
+    def _build_mode_detail(self):
+        tk.Label(self._view_frame, text="Mode detail — coming soon",
+                 bg=BG, fg=FG2, font=FONT).pack(pady=60)
+
+    def _build_advanced(self):
+        tk.Label(self._view_frame, text="Advanced editor — coming soon",
+                 bg=BG, fg=FG2, font=FONT).pack(pady=60)
 
     # ---------------------------------------------------------------- #
     #  Load / Save                                                       #
@@ -425,11 +480,9 @@ class WakeUpConfigUI(tk.Tk):
 
         self.profiles = self.config_data.get("profiles", {})
         self._refresh_profile_list()
-        if self.profiles:
-            self.profile_list.select_set(0)
-            self.profile_list.event_generate("<<ListboxSelect>>")
         self._dirty = False
         self._update_title()
+        self._show_view(VIEW_HOME)
 
     def _save(self):
         self._flush_current_profile()
@@ -438,41 +491,12 @@ class WakeUpConfigUI(tk.Tk):
             json.dump(self.config_data, f, indent=2, ensure_ascii=False)
         self._dirty = False
         self._update_title()
-        self.save_btn.configure(text="💾  Save")
 
     def _flush_current_profile(self):
-        """Write form values back into self.profiles for the current profile."""
-        if self._current_profile is None:
-            return
-        old_name = self._current_profile
-        new_name = self.v_profile_name.get().strip()
-        if not new_name:
-            return
-
-        profile = self.profiles.get(old_name, {})
-        profile["hotkey"]           = self.v_hotkey.get().strip()
-        profile["message"]          = self.v_message.get().strip()
-        raw_kw = self.kw_text.get("1.0", "end").strip()
-        profile["trigger_keywords"] = [k.strip() for k in raw_kw.splitlines() if k.strip()]
-        profile["apps"]             = self._tree_to_apps()
-
-        if new_name != old_name:
-            ordered = {}
-            for k, v in self.profiles.items():
-                ordered[new_name if k == old_name else k] = v
-            self.profiles = ordered
-            self._current_profile = new_name
-        else:
-            self.profiles[old_name] = profile
-
-        self._refresh_profile_list(select=new_name)
-
-    def _tree_to_apps(self) -> list:
-        apps = []
-        for iid in self.apps_tree.get_children():
-            app_obj = json.loads(self.apps_tree.item(iid, "tags")[0])
-            apps.append(app_obj)
-        return apps
+        """Write form values back into self.profiles for the current profile.
+        TODO: S4 will restore full flush logic when _build_mode_detail owns the form.
+        """
+        pass
 
     # ---------------------------------------------------------------- #
     #  Profile list actions                                              #
@@ -480,8 +504,11 @@ class WakeUpConfigUI(tk.Tk):
 
     def _refresh_profile_list(self, select: str | None = None):
         self.profile_list.delete(0, "end")
-        for name in self.profiles:
-            self.profile_list.insert("end", f"  {name}")
+        for name, profile in self.profiles.items():
+            apps = profile.get("apps", [])
+            hotkey = profile.get("hotkey", "")
+            suffix = f"  ({len(apps)} apps" + (f", {hotkey}" if hotkey else "") + ")"
+            self.profile_list.insert("end", f"  {name}{suffix}")
         if select:
             keys = list(self.profiles.keys())
             if select in keys:
@@ -493,61 +520,35 @@ class WakeUpConfigUI(tk.Tk):
         sel = self.profile_list.curselection()
         if not sel:
             return
-        if self._current_profile:
-            self._flush_current_profile()
-
         name = list(self.profiles.keys())[sel[0]]
         self._current_profile = name
-        profile = self.profiles[name]
-
-        self.v_profile_name.set(name)
-        self.v_hotkey.set(profile.get("hotkey", ""))
-        self.v_message.set(profile.get("message", ""))
-
-        self.kw_text.delete("1.0", "end")
-        self.kw_text.insert("1.0", "\n".join(profile.get("trigger_keywords", [])))
-        self.kw_text.edit_modified(False)
-
-        self._refresh_apps_tree(profile.get("apps", []))
+        self._show_view(VIEW_MODE_DETAIL)
 
     def _add_profile(self):
-        self._flush_current_profile()
-        name = self._unique_name("new-profile")
-        self.profiles[name] = {
-            "trigger_keywords": [], "hotkey": "", "message": "", "apps": []
-        }
-        self._refresh_profile_list(select=name)
-        self._current_profile = None
-        self.profile_list.select_set(list(self.profiles.keys()).index(name))
-        self.profile_list.event_generate("<<ListboxSelect>>")
-        self._mark_dirty()
+        self._show_view(VIEW_NEW_MODE_CHOICE)
 
     def _dupe_profile(self):
         if not self._current_profile:
             return
-        self._flush_current_profile()
         src = self._current_profile
         name = self._unique_name(src + "-copy")
         self.profiles[name] = deepcopy(self.profiles[src])
+        self._current_profile = name
         self._refresh_profile_list(select=name)
-        self._current_profile = None
-        self.profile_list.select_set(list(self.profiles.keys()).index(name))
-        self.profile_list.event_generate("<<ListboxSelect>>")
         self._mark_dirty()
+        self._show_view(VIEW_MODE_DETAIL)
 
     def _delete_profile(self):
         if not self._current_profile:
             return
-        if not messagebox.askyesno("Delete profile",
-                f"Delete profile '{self._current_profile}'?", parent=self):
+        if not messagebox.askyesno("Delete mode",
+                f"Delete mode '{self._current_profile}'?", parent=self):
             return
         del self.profiles[self._current_profile]
         self._current_profile = None
         self._refresh_profile_list()
-        if self.profiles:
-            self.profile_list.select_set(0)
-            self.profile_list.event_generate("<<ListboxSelect>>")
         self._mark_dirty()
+        self._show_view(VIEW_HOME)
 
     def _unique_name(self, base: str) -> str:
         if base not in self.profiles:
@@ -558,85 +559,6 @@ class WakeUpConfigUI(tk.Tk):
         return f"{base}-{i}"
 
     # ---------------------------------------------------------------- #
-    #  Apps treeview                                                     #
-    # ---------------------------------------------------------------- #
-
-    def _refresh_apps_tree(self, apps: list):
-        self.apps_tree.delete(*self.apps_tree.get_children())
-        for app in apps:
-            w = app.get("window", {})
-            self.apps_tree.insert("", "end",
-                values=(
-                    app.get("name", ""),
-                    app.get("path", ""),
-                    app.get("delay", 0),
-                    w.get("monitor", 0),
-                    w.get("preset", "full"),
-                ),
-                tags=(json.dumps(app),)
-            )
-
-    def _app_add(self):
-        dlg = AppDialog(self)
-        self.wait_window(dlg)
-        if dlg.result:
-            self.apps_tree.insert("", "end",
-                values=(
-                    dlg.result["name"], dlg.result["path"],
-                    dlg.result["delay"],
-                    dlg.result["window"]["monitor"],
-                    dlg.result["window"]["preset"],
-                ),
-                tags=(json.dumps(dlg.result),)
-            )
-            self._mark_dirty()
-
-    def _app_edit(self):
-        sel = self.apps_tree.selection()
-        if not sel:
-            return
-        iid = sel[0]
-        app_data = json.loads(self.apps_tree.item(iid, "tags")[0])
-        dlg = AppDialog(self, app_data)
-        self.wait_window(dlg)
-        if dlg.result:
-            self.apps_tree.item(iid,
-                values=(
-                    dlg.result["name"], dlg.result["path"],
-                    dlg.result["delay"],
-                    dlg.result["window"]["monitor"],
-                    dlg.result["window"]["preset"],
-                ),
-                tags=(json.dumps(dlg.result),)
-            )
-            self._mark_dirty()
-
-    def _app_delete(self):
-        sel = self.apps_tree.selection()
-        if sel:
-            self.apps_tree.delete(sel[0])
-            self._mark_dirty()
-
-    def _app_move_up(self):
-        sel = self.apps_tree.selection()
-        if not sel:
-            return
-        iid = sel[0]
-        idx = self.apps_tree.index(iid)
-        if idx > 0:
-            self.apps_tree.move(iid, "", idx - 1)
-            self._mark_dirty()
-
-    def _app_move_down(self):
-        sel = self.apps_tree.selection()
-        if not sel:
-            return
-        iid = sel[0]
-        idx = self.apps_tree.index(iid)
-        self.apps_tree.move(iid, "", idx + 1)
-        self._mark_dirty()
-
-    # ---------------------------------------------------------------- #
     #  Dirty state                                                       #
     # ---------------------------------------------------------------- #
 
@@ -644,11 +566,13 @@ class WakeUpConfigUI(tk.Tk):
         if not self._dirty:
             self._dirty = True
             self._update_title()
-            self.save_btn.configure(text="💾  Save  ●")
+            self._unsaved_chip.pack(side="right", padx=(0, 8))
 
     def _update_title(self):
         dot = " ●" if self._dirty else ""
         self.title(f"WakeUp — Config Editor{dot}")
+        if not self._dirty:
+            self._unsaved_chip.pack_forget()
 
     def _on_close(self):
         if self._dirty:

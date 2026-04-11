@@ -44,6 +44,7 @@ DraftApp = {
 ```
 
 **Rules:**
+
 - S1 produces this shape from `capture_current_desktop()`. Fields `launch_details` is always `{}` at capture time.
 - S3 (review UI) reads all fields, lets user edit `name`, `launch_behavior`, `launch_details`, `window.monitor`, `window.preset`. Writes changes back into the same dict shape.
 - S4 (save) consumes this shape via `draft_to_profile_app()` to produce the final profile app dict.
@@ -90,6 +91,7 @@ def draft_to_profile_app(draft: DraftApp) -> dict:
 ```
 
 **Import path used by consumers:**
+
 ```python
 from capture_service import capture_current_desktop, draft_to_profile_app
 ```
@@ -169,6 +171,7 @@ def _show_view(self, view_name: str):
 
 **Builder method naming convention:**
 Each view has a builder method named `_build_{VIEW_NAME}()` that populates `self._view_frame`:
+
 - `_build_home()`
 - `_build_new_mode_choice()`
 - `_build_capture()`           ← implemented by S3
@@ -239,30 +242,35 @@ ProfileApp = {
 
 Fixed mapping used by S3 (review UI) and S4 (save translation). Do not invent new values.
 
-| `app_type` | `launch_behavior` options | UI label | Detail widget |
-|---|---|---|---|
-| `"vscode"` | `"vscode_folder"` | `"Open folder/workspace"` | Folder entry + browse |
-| `"vscode"` | `"vscode_session"` | `"Reopen last session"` | None |
-| `"vscode"` | `"plain"` | `"Launch plain"` | None |
-| `"chrome"` | `"chrome_urls"` | `"Open these URLs"` | Multiline text |
-| `"chrome"` | `"chrome_new_window"` | `"Open new window"` | None |
-| `"browser"` | `"chrome_urls"` | `"Open these URLs"` | Multiline text |
-| `"browser"` | `"chrome_new_window"` | `"Open new window"` | None |
-| `"generic"` | `"plain"` | `"Launch normally"` | Optional args entry (advanced) |
+
+| `app_type`  | `launch_behavior` options | UI label                  | Detail widget                  |
+| ----------- | ------------------------- | ------------------------- | ------------------------------ |
+| `"vscode"`  | `"vscode_folder"`         | `"Open folder/workspace"` | Folder entry + browse          |
+| `"vscode"`  | `"vscode_session"`        | `"Reopen last session"`   | None                           |
+| `"vscode"`  | `"plain"`                 | `"Launch plain"`          | None                           |
+| `"chrome"`  | `"chrome_urls"`           | `"Open these URLs"`       | Multiline text                 |
+| `"chrome"`  | `"chrome_new_window"`     | `"Open new window"`       | None                           |
+| `"browser"` | `"chrome_urls"`           | `"Open these URLs"`       | Multiline text                 |
+| `"browser"` | `"chrome_new_window"`     | `"Open new window"`       | None                           |
+| `"generic"` | `"plain"`                 | `"Launch normally"`       | Optional args entry (advanced) |
+
 
 ### Contract C7 — File ownership
 
 Each story owns specific files. No story may edit files it does not own.
 
-| File | S1 | S2 | S3 | S4 | S5 |
-|------|----|----|----|----|-----|
-| `window_manager.py` | **owner** | — | — | — | — |
-| `capture_service.py` | **owner** | — | import only | import only | — |
-| `config_ui.py` | — | **owner** (foundation) | **owner** (`_build_capture`, `_build_review`) | **owner** (`_build_mode_detail`, `_build_advanced`, save logic, validation) | **owner** (test button) |
-| `launcher.py` | — | — | — | — | **owner** |
-| `README.md` | — | — | — | — | **owner** |
+
+| File                 | S1        | S2                     | S3                                            | S4                                                                          | S5                      |
+| -------------------- | --------- | ---------------------- | --------------------------------------------- | --------------------------------------------------------------------------- | ----------------------- |
+| `window_manager.py`  | **owner** | —                      | —                                             | —                                                                           | —                       |
+| `capture_service.py` | **owner** | —                      | import only                                   | import only                                                                 | —                       |
+| `config_ui.py`       | —         | **owner** (foundation) | **owner** (`_build_capture`, `_build_review`) | **owner** (`_build_mode_detail`, `_build_advanced`, save logic, validation) | **owner** (test button) |
+| `launcher.py`        | —         | —                      | —                                             | —                                                                           | **owner**               |
+| `README.md`          | —         | —                      | —                                             | —                                                                           | **owner**               |
+
 
 For `config_ui.py` which is touched by S2, S3, S4, and S5:
+
 - **S2** builds the skeleton: theme, screen system, `_show_view`, stubs, `_build_home`, `_build_new_mode_choice`, shared helpers.
 - **S3** fills in ONLY `_build_capture()` and `_build_review()` stubs. Does not touch other builders.
 - **S4** fills in ONLY `_build_mode_detail()`, `_build_advanced()`, save handler, and validation. Does not touch S3's builders.
@@ -290,13 +298,15 @@ S2  UI Foundation + Visuals ──┤
 
 ## File Plan
 
-| Action | File | Owner story | Responsibility |
-|--------|------|-------------|----------------|
-| Create | `capture_service.py` | S1 | Window enumeration → draft app records (Contract C2) |
-| Modify | `window_manager.py` | S1 | Capture helpers (Contract C3) |
-| Modify | `config_ui.py` | S2 foundation, S3/S4/S5 fill stubs | Full UI redesign (Contract C4) |
-| Modify | `launcher.py` | S5 | Small test-mode helpers |
-| Modify | `README.md` | S5 | Document new workflow |
+
+| Action | File                 | Owner story                        | Responsibility                                       |
+| ------ | -------------------- | ---------------------------------- | ---------------------------------------------------- |
+| Create | `capture_service.py` | S1                                 | Window enumeration → draft app records (Contract C2) |
+| Modify | `window_manager.py`  | S1                                 | Capture helpers (Contract C3)                        |
+| Modify | `config_ui.py`       | S2 foundation, S3/S4/S5 fill stubs | Full UI redesign (Contract C4)                       |
+| Modify | `launcher.py`        | S5                                 | Small test-mode helpers                              |
+| Modify | `README.md`          | S5                                 | Document new workflow                                |
+
 
 Schema unchanged: `profiles.json` keeps its current shape (Contract C5).
 
@@ -317,16 +327,16 @@ Schema unchanged: `profiles.json` keeps its current shape (Contract C5).
 Add the four functions specified in **Contract C3**, below the existing `arrange_window` function. Signatures, return types, and parameter names must match the contract exactly.
 
 Implementation notes:
+
 - `list_visible_windows`: use `win32gui.EnumWindows`. The returned `rect` is `(left, top, right, bottom)` matching `win32gui.GetWindowRect` format.
 - `get_window_process_path`: use `win32process.GetWindowThreadProcessId` → `win32api.OpenProcess` → `win32process.GetModuleFileNameEx`. Wrap in try/except, return `None` on any failure.
 - `get_window_monitor_index`: compute center `(cx, cy)` from rect, iterate `monitors` list, check if center falls within each monitor's `work_area` `(l, t, r, b)`.
 - `match_rect_to_preset`: for each preset name, call the existing `apply_preset(monitor, preset_name)` to get expected `(x, y, w, h)`, convert actual rect `(l, t, r, b)` to `(x, y, w, h)`, compare with tolerance as fraction of monitor dimension.
-
-- [ ] Implement `list_visible_windows`
-- [ ] Implement `get_window_process_path`
-- [ ] Implement `get_window_monitor_index`
-- [ ] Implement `match_rect_to_preset`
-- [ ] Smoke-test: run helpers from a scratch script, print results, verify output makes sense with 2-3 open windows
+- Implement `list_visible_windows`
+- Implement `get_window_process_path`
+- Implement `get_window_monitor_index`
+- Implement `match_rect_to_preset`
+- Smoke-test: run helpers from a scratch script, print results, verify output makes sense with 2-3 open windows
 
 ### Task 1.2: Build capture service
 
@@ -341,22 +351,20 @@ Implement the two public functions from **Contract C2** plus these private helpe
     - `msedge.exe` → `"chrome"`
     - `firefox.exe` → `"browser"`
     - everything else → `"generic"`
-
 - `_generate_display_name(exe_path: str, title: str) -> str`
   - Known: `"vscode"` → `"VS Code"`, `"chrome"` → `"Chrome"`, etc.
   - Fallback: exe stem, first letter capitalized.
-
 - `_default_launch_behavior(app_type: str) -> str`
   - `"vscode"` → `"vscode_folder"`
   - `"chrome"` → `"chrome_urls"`
   - `"browser"` → `"chrome_urls"`
   - `"generic"` → `"plain"`
-
 - Junk-window filtering: skip windows titled `"Program Manager"`, `"MSCTFIME"`, `"Windows Input Experience"`, or with area < 10 000 px².
 
 **Output must match Contract C1 exactly.** `launch_details` is always `{}` at capture time.
 
 Imports from `window_manager`:
+
 ```python
 from window_manager import (
     get_monitors,
@@ -367,10 +375,10 @@ from window_manager import (
 )
 ```
 
-- [ ] Create `capture_service.py` with `capture_current_desktop` and private helpers
-- [ ] Add junk-window filtering
-- [ ] Implement `draft_to_profile_app` per Contract C2 translation table
-- [ ] Smoke-test: call `capture_current_desktop()` with a few apps open, verify JSON output matches Contract C1
+- Create `capture_service.py` with `capture_current_desktop` and private helpers
+- Add junk-window filtering
+- Implement `draft_to_profile_app` per Contract C2 translation table
+- Smoke-test: call `capture_current_desktop()` with a few apps open, verify JSON output matches Contract C1
 
 ---
 
@@ -401,11 +409,11 @@ def section_heading(parent, text: str):
 
 Update `apply_theme` for any new style values (larger heading, sub-heading font, etc.).
 
-- [ ] Update all color/font constants to match Contract C4
-- [ ] Add `FONT_H2` constant
-- [ ] Add `card_frame` helper
-- [ ] Add `section_heading` helper
-- [ ] Update `apply_theme` for new values
+- Update all color/font constants to match Contract C4
+- Add `FONT_H2` constant
+- Add `card_frame` helper
+- Add `section_heading` helper
+- Update `apply_theme` for new values
 
 ### Task 2.2: Introduce screen/view state management
 
@@ -414,6 +422,7 @@ Update `apply_theme` for any new style values (larger heading, sub-heading font,
 Add view constants and refactor `WakeUpConfigUI.__init__` and `_build_ui` per **Contract C4**.
 
 Add to `__init__`:
+
 ```python
 self._current_view: str = VIEW_HOME
 self._view_frame: tk.Frame  # assigned in _build_ui
@@ -421,11 +430,13 @@ self._draft_apps: list[dict] | None = None
 ```
 
 Refactor `_build_ui`:
+
 - Keep left sidebar (mode list) always visible
 - Replace the current right panel with `self._view_frame = tk.Frame(main, bg=BG)`
 - Call `_show_view(VIEW_HOME)` at the end
 
 Implement `_show_view` per contract:
+
 ```python
 def _show_view(self, view_name: str):
     for child in self._view_frame.winfo_children():
@@ -437,6 +448,7 @@ def _show_view(self, view_name: str):
 ```
 
 Create empty stubs for all six builders. Each stub should show a centered label with the view name so it's testable:
+
 ```python
 def _build_capture(self):
     tk.Label(self._view_frame, text="[capture — stub]", bg=BG, fg=FG2).pack(pady=40)
@@ -444,13 +456,13 @@ def _build_capture(self):
 # same pattern for _build_review, _build_mode_detail, _build_advanced
 ```
 
-- [ ] Add `VIEW_*` constants at module level
-- [ ] Add instance variables to `__init__`
-- [ ] Refactor `_build_ui` to use `_view_frame`
-- [ ] Implement `_show_view`
-- [ ] Create six stub builders
-- [ ] Migrate existing detail-panel logic into `_build_mode_detail` stub (can be rough — S4 will rewrite)
-- [ ] Verify app still opens and existing mode editing works
+- Add `VIEW_*` constants at module level
+- Add instance variables to `__init__`
+- Refactor `_build_ui` to use `_view_frame`
+- Implement `_show_view`
+- Create six stub builders
+- Migrate existing detail-panel logic into `_build_mode_detail` stub (can be rough — S4 will rewrite)
+- Verify app still opens and existing mode editing works
 
 ### Task 2.3: Refresh visual layout
 
@@ -462,44 +474,43 @@ def _build_capture(self):
 - Restyle top bar: cleaner title, unsaved-changes status chip
 - Update `+ Add` button in sidebar to `+ New mode` (navigates to `VIEW_NEW_MODE_CHOICE`)
 - Remove `Dupe` and `Del` from sidebar buttons (move to mode-detail or right-click context)
-
-- [ ] Update geometry and sidebar width
-- [ ] Restyle sidebar mode items
-- [ ] Restyle top bar
-- [ ] Update sidebar button to `+ New mode`
-- [ ] Verify nothing visually broken
+- Update geometry and sidebar width
+- Restyle sidebar mode items
+- Restyle top bar
+- Update sidebar button to `+ New mode`
+- Verify nothing visually broken
 
 ### Task 2.4: Build home screen
 
 **File:** `config_ui.py`
 
 Implement `_build_home()`:
+
 - Section heading: `"Your modes"`
 - If profiles exist: show mode cards (name, app count, hotkey) as clickable items
 - If no profiles: show empty-state message + `"Create your first mode"` CTA
 - Mode card click → `self._current_profile = name; self._show_view(VIEW_MODE_DETAIL)`
 - `+ New mode` button prominent
-
-- [ ] Implement `_build_home`
-- [ ] Wire mode card clicks
-- [ ] Wire new-mode button
-- [ ] Handle empty-state
+- Implement `_build_home`
+- Wire mode card clicks
+- Wire new-mode button
+- Handle empty-state
 
 ### Task 2.5: Build new-mode-choice screen
 
 **File:** `config_ui.py`
 
 Implement `_build_new_mode_choice()`:
+
 - Heading: `"Create a new mode"`
 - Two large cards:
   - `"Capture current setup"` → `_show_view(VIEW_CAPTURE)`
   - `"Manual setup"` → create empty profile, set `_current_profile`, `_show_view(VIEW_MODE_DETAIL)`
 - `"Back"` link → `_show_view(VIEW_HOME)`
-
-- [ ] Implement `_build_new_mode_choice`
-- [ ] Wire capture card
-- [ ] Wire manual card
-- [ ] Wire back navigation
+- Implement `_build_new_mode_choice`
+- Wire capture card
+- Wire manual card
+- Wire back navigation
 
 ---
 
@@ -518,24 +529,26 @@ Implement `_build_new_mode_choice()`:
 **File:** `config_ui.py` — fill in `_build_capture` stub
 
 Centered panel:
+
 - `section_heading`: `"Capture your current setup"`
 - Instruction label: `"Open the apps you want in this mode and arrange them on your monitors. When ready, click Capture."`
 - Primary button: `"Capture now"`
 - Secondary: `"Back"` → `_show_view(VIEW_NEW_MODE_CHOICE)`, `"Build manually instead"` → create empty profile, `_show_view(VIEW_MODE_DETAIL)`
 
 On capture:
+
 ```python
 from capture_service import capture_current_desktop
 drafts = capture_current_desktop()
 self._draft_apps = drafts
 ```
+
 - If `len(drafts) == 0`: show message `"No windows detected. Make sure your apps are open and visible."`
 - Otherwise: show summary `f"Found {len(drafts)} apps on {n} monitors"`, then `_show_view(VIEW_REVIEW)`
-
-- [ ] Implement `_build_capture`
-- [ ] Wire capture button
-- [ ] Handle zero-results
-- [ ] Navigate to review
+- Implement `_build_capture`
+- Wire capture button
+- Handle zero-results
+- Navigate to review
 
 ### Task 3.2: Build the review-draft screen
 
@@ -544,6 +557,7 @@ self._draft_apps = drafts
 Scrollable vertical list. One card per item in `self._draft_apps`.
 
 Add `_build_app_card(self, parent: tk.Frame, draft: dict, index: int) -> tk.Frame`:
+
 - Reads from `draft` (Contract C1 shape)
 - Shows: name entry, path label + browse, launch behavior dropdown (options from Contract C6 based on `draft["app_type"]`), detail widget area, monitor dropdown, preset dropdown, remove button
 - Launch behavior dropdown `<<ComboboxSelected>>` callback swaps the detail widget:
@@ -553,11 +567,13 @@ Add `_build_app_card(self, parent: tk.Frame, draft: dict, index: int) -> tk.Fram
 - Remove button: removes from `self._draft_apps`, rebuilds review screen
 
 Bottom actions:
+
 - `"Continue"` → `_show_view(VIEW_MODE_DETAIL)`
 - `"+ Add app manually"` → append empty DraftApp to `self._draft_apps`, rebuild
 - `"Back to capture"` → `_show_view(VIEW_CAPTURE)`
 
 Empty DraftApp template for manual add:
+
 ```python
 {
     "name": "",
@@ -571,12 +587,12 @@ Empty DraftApp template for manual add:
 }
 ```
 
-- [ ] Implement `_build_review`
-- [ ] Implement `_build_app_card`
-- [ ] Wire launch-behavior dropdown to swap detail area
-- [ ] Wire folder browse for VS Code
-- [ ] Wire remove per card
-- [ ] Wire continue, add-manually, back buttons
+- Implement `_build_review`
+- Implement `_build_app_card`
+- Wire launch-behavior dropdown to swap detail area
+- Wire folder browse for VS Code
+- Wire remove per card
+- Wire continue, add-manually, back buttons
 
 ---
 
@@ -595,12 +611,14 @@ Empty DraftApp template for manual add:
 **File:** `config_ui.py` — fill in `_build_mode_detail` stub
 
 Clean form inside a card:
+
 - Mode name: large entry, prominent (pre-filled from `self._current_profile` if editing)
 - Hotkey: entry with hint `"e.g. ctrl+alt+w"`
 - Startup message: entry
 - Trigger keywords: multiline `dark_text`, one per line
 
 Store form variables:
+
 ```python
 self._detail_vars = {
     "name": tk.StringVar(),
@@ -611,9 +629,11 @@ self._detail_kw_text: tk.Text  # keywords multiline
 ```
 
 If editing an existing profile (`self._current_profile is not None` and `self._draft_apps is None`):
+
 - Pre-fill from `self.profiles[self._current_profile]`
 
 If coming from capture flow (`self._draft_apps is not None`):
+
 - Pre-fill name as empty (user must name it)
 - Other fields empty
 
@@ -621,9 +641,9 @@ Primary action: `"Save mode"` → calls `self._save_mode()`
 Secondary: `"Back to review"` (only if `self._draft_apps is not None`) → `_show_view(VIEW_REVIEW)`
 Secondary: `"Advanced edit"` → `_show_view(VIEW_ADVANCED)`
 
-- [ ] Implement `_build_mode_detail`
-- [ ] Pre-fill for editing vs. new capture flow
-- [ ] Wire save, back, advanced buttons
+- Implement `_build_mode_detail`
+- Pre-fill for editing vs. new capture flow
+- Wire save, back, advanced buttons
 
 ### Task 4.2: Implement save logic
 
@@ -681,11 +701,11 @@ def _save_mode(self):
     self._show_view(VIEW_HOME)
 ```
 
-- [ ] Implement `_save_mode`
-- [ ] Handle capture-flow save (draft translation)
-- [ ] Handle existing-mode save (preserve apps)
-- [ ] Handle rename
-- [ ] Navigate to home after save
+- Implement `_save_mode`
+- Handle capture-flow save (draft translation)
+- Handle existing-mode save (preserve apps)
+- Handle rename
+- Navigate to home after save
 
 ### Task 4.3: Refresh the advanced editor
 
@@ -696,12 +716,12 @@ Reuse most of the current detail-panel content (apps treeview, add/edit/remove/r
 Must load from `self.profiles[self._current_profile]` (requires mode to be saved first or being edited).
 
 Navigation:
+
 - `"Back to mode details"` → `_show_view(VIEW_MODE_DETAIL)`
 - `"Save"` → flush tree to `self.profiles[self._current_profile]["apps"]`, write file
-
-- [ ] Implement `_build_advanced` based on current `_build_detail_panel` logic
-- [ ] Restyle with updated theme
-- [ ] Wire navigation and save
+- Implement `_build_advanced` based on current `_build_detail_panel` logic
+- Restyle with updated theme
+- Wire navigation and save
 
 ### Task 4.4: Add inline validation helper
 
@@ -715,12 +735,12 @@ def _show_field_warning(self, parent: tk.Frame, message: str) -> tk.Label:
 ```
 
 Apply to:
+
 - Mode name (required, unique)
 - App path (warn if not exists, non-blocking)
-
-- [ ] Add `_show_field_warning` helper
-- [ ] Apply to mode name in `_build_mode_detail`
-- [ ] Apply to app paths where visible
+- Add `_show_field_warning` helper
+- Apply to mode name in `_build_mode_detail`
+- Apply to app paths where visible
 
 ---
 
@@ -738,6 +758,7 @@ Apply to:
 Add a `"Test this mode"` button to `_build_mode_detail` and `_build_advanced`.
 
 On click:
+
 - Build a temporary profile dict from current form state (do not require save)
 - If `self._draft_apps is not None`: translate drafts via `draft_to_profile_app`
 - Call `execute_profile(profile)` from `launcher.py`
@@ -747,16 +768,17 @@ On click:
 from launcher import execute_profile
 ```
 
-- [ ] Add test button to mode detail screen
-- [ ] Add test button to advanced editor
-- [ ] Implement `_test_current_mode` handler
-- [ ] Show launch status
+- Add test button to mode detail screen
+- Add test button to advanced editor
+- Implement `_test_current_mode` handler
+- Show launch status
 
 ### Task 5.2: Update README
 
 **File:** `README.md`
 
 Add new sections after "Quick Start":
+
 - **Creating a mode from your current desktop** — capture → review → save
 - **Review step** — why VS Code folder and Chrome URLs need input
 - **Advanced editor** — fallback for power users
@@ -764,21 +786,23 @@ Add new sections after "Quick Start":
 
 Update project structure to include `capture_service.py`.
 
-- [ ] Write new sections
-- [ ] Update project structure
-- [ ] Keep all existing sections intact
+- Write new sections
+- Update project structure
+- Keep all existing sections intact
 
 ---
 
 ## Parallelism Summary
 
-| Story | Can start immediately | Blocked by | Produces | Consumes |
-|-------|----------------------|------------|----------|----------|
-| **S1** Capture Backend | Yes | Nothing | C2, C3 | Existing `window_manager` |
-| **S2** UI Foundation | Yes | Nothing | C4 | Nothing new |
-| **S3** Capture Flow UI | No | S1 + S2 | — | C1, C2, C4, C6 |
-| **S4** Mode Details + Save | No | S2 | Save flow | C1, C2, C4, C5, C6 |
-| **S5** Test + Docs | No | S4 | — | C4, `execute_profile` |
+
+| Story                      | Can start immediately | Blocked by | Produces  | Consumes                  |
+| -------------------------- | --------------------- | ---------- | --------- | ------------------------- |
+| **S1** Capture Backend     | Yes                   | Nothing    | C2, C3    | Existing `window_manager` |
+| **S2** UI Foundation       | Yes                   | Nothing    | C4        | Nothing new               |
+| **S3** Capture Flow UI     | No                    | S1 + S2    | —         | C1, C2, C4, C6            |
+| **S4** Mode Details + Save | No                    | S2         | Save flow | C1, C2, C4, C5, C6        |
+| **S5** Test + Docs         | No                    | S4         | —         | C4, `execute_profile`     |
+
 
 ```
 Time ──────────────────────────────────────────►
@@ -814,3 +838,4 @@ Agent B:  ████ S2 ████ ──── ████ S4 ████
 - Pixel-perfect live monitor preview map
 - Multi-step wizard state recovery on crash
 - Deep app-specific integrations beyond VS Code and Chrome
+

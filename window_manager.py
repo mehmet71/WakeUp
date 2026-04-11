@@ -221,3 +221,112 @@ def arrange_window(hwnd: int, window_cfg: dict, monitors: list[dict]):
         h = window_cfg.get("h", 720)
 
     set_window_position(hwnd, x, y, w, h, maximize=maximize)
+
+
+# ------------------------------------------------------------------ #
+#  Capture helpers (Contract C3)                                       #
+# ------------------------------------------------------------------ #
+
+_PRESET_NAMES = [
+    "full", "left-half", "right-half", "top-half", "bottom-half",
+    "top-left", "top-right", "bottom-left", "bottom-right",
+    "left-third", "center-third", "right-third",
+    "left-two-thirds", "right-two-thirds",
+]
+
+
+def list_visible_windows() -> list[dict]:
+    """
+    Returns list of visible, titled, non-tiny top-level windows.
+    Each dict: {"hwnd": int, "title": str, "rect": (l, t, r, b), "pid": int}
+    Filters: skips empty titles, area < 10_000 px².
+    """
+    if not HAS_WIN32:
+        return []
+
+    results = []
+
+    def _cb(hwnd, _):
+        if not win32gui.IsWindowVisible(hwnd):
+            return True
+        title = win32gui.GetWindowText(hwnd)
+        if not title:
+            return True
+        try:
+            l, t, r, b = win32gui.GetWindowRect(hwnd)
+            if (r - l) * (b - t) < 10_000:
+                return True
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            results.append({"hwnd": hwnd, "title": title, "rect": (l, t, r, b), "pid": pid})
+        except Exception:
+            pass
+        return True
+
+    win32gui.EnumWindows(_cb, None)
+    return results
+
+
+def get_window_process_path(hwnd: int) -> "str | None":
+    """
+    Resolve the full executable path for the process owning this window.
+    Returns None on failure or access-denied.
+    """
+    if not HAS_WIN32:
+        return None
+    try:
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        PROCESS_QUERY_INFORMATION = 0x0400
+        PROCESS_VM_READ = 0x0010
+        handle = win32api.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, pid)
+        try:
+            return win32process.GetModuleFileNameEx(handle, 0)
+        finally:
+            win32api.CloseHandle(handle)
+    except Exception:
+        return None
+
+
+def get_window_monitor_index(hwnd: int, monitors: list[dict]) -> int:
+    """
+    Determine which monitor a window is on based on its center point.
+    Returns 0-based monitor index. Falls back to 0.
+    """
+    if not HAS_WIN32 or not monitors:
+        return 0
+    try:
+        l, t, r, b = win32gui.GetWindowRect(hwnd)
+        cx = (l + r) // 2
+        cy = (t + b) // 2
+        for m in monitors:
+            ml, mt, mr, mb = m["work_area"]
+            if ml <= cx < mr and mt <= cy < mb:
+                return m["index"]
+    except Exception:
+        pass
+    return 0
+
+
+def match_rect_to_preset(rect: tuple, monitor: dict, tolerance: float = 0.08) -> "str | None":
+    """
+    Compare a window rect against all known presets for the given monitor.
+    Returns the preset name if within tolerance, else None.
+    rect is (left, top, right, bottom) absolute coordinates.
+    """
+    l, t, r, b = rect
+    actual_x, actual_y = l, t
+    actual_w, actual_h = r - l, b - t
+
+    ml, mt, mr, mb = monitor["work_area"]
+    mw = mr - ml
+    mh = mb - mt
+
+    for name in _PRESET_NAMES:
+        ex, ey, ew, eh = apply_preset(monitor, name)
+        if (
+            abs(ex - actual_x) <= tolerance * mw
+            and abs(ey - actual_y) <= tolerance * mh
+            and abs(ew - actual_w) <= tolerance * mw
+            and abs(eh - actual_h) <= tolerance * mh
+        ):
+            return name
+    return None

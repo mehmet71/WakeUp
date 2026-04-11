@@ -7,7 +7,9 @@
       "window_ms": 900,
       "threshold": 0.15,
       "cooldown_s": 2.0,
-      "_note_threshold": "Lower = more sensitive. 0.15 for quiet rooms, 0.35 for noisy."
+      "device": "WH-1000XM5",
+      "_note_threshold": "Lower = more sensitive. 0.15 for quiet rooms, 0.35 for noisy.",
+      "_note_device": "Name substring or device index. Run wakeup.py to see available devices."
     },
     "voice": {
       "enabled": false,

@@ -47,6 +47,7 @@ class ClapDetector:
         debounce_ms: int = 120,
         cooldown_s: float = 2.0,
         sample_rate: int = 44100,
+        device: int | str | None = None,
     ):
         self.on_clap = on_clap
         self.threshold = threshold
@@ -55,24 +56,25 @@ class ClapDetector:
         self.debounce_ms = debounce_ms / 1000
         self.cooldown_s = cooldown_s
         self.sample_rate = sample_rate
+        self._device = device
 
         self._clap_times: list[float] = []
         self._last_trigger: float = 0
         self._in_clap: bool = False
         self._stream = None
+        self._callback_count: int = 0
 
     def _audio_callback(self, indata, frames, time_info, status):
+        self._callback_count += 1
         normalized = indata.astype(np.float32) / 32768.0
         rms = float(np.sqrt(np.mean(normalized ** 2)))
         now = time.monotonic()
 
         if rms > self.threshold:
             if not self._in_clap:
-                # Rising edge of a clap
                 self._in_clap = True
                 if not self._clap_times or (now - self._clap_times[-1]) > self.debounce_ms:
                     self._clap_times.append(now)
-                    # Prune old claps outside the window
                     cutoff = now - self.window_ms
                     self._clap_times = [t for t in self._clap_times if t >= cutoff]
 
@@ -86,17 +88,54 @@ class ClapDetector:
         else:
             self._in_clap = False
 
+    def _resolve_device(self) -> int | None:
+        """Resolve self._device (name substring, index, or None) to a device index."""
+        if self._device is None:
+            return None
+        if isinstance(self._device, int):
+            return self._device
+        name = str(self._device).lower()
+        for i, d in enumerate(sd.query_devices()):
+            if d['max_input_channels'] > 0 and name in d['name'].lower():
+                return i
+        return None
+
+    def _check_stream_health(self):
+        """Warn the user if the selected device delivers no audio."""
+        time.sleep(3)
+        if self._callback_count > 0:
+            return
+        devices = []
+        for i, d in enumerate(sd.query_devices()):
+            if d['max_input_channels'] > 0:
+                devices.append(f"  {i}: {d['name']}")
+        device_list = "\n".join(devices)
+        print(
+            f"\n[ClapDetector] WARNING: No audio received from the current input device.\n"
+            f"  Set \"device\" in profiles.json → settings → clap_detection.\n"
+            f"  Use a device index or a name substring, e.g. \"device\": \"WH-1000XM5\"\n\n"
+            f"  Available input devices:\n{device_list}\n"
+        )
+
     def start(self):
         if not HAS_SD:
             return
-        self._stream = sd.InputStream(
-            samplerate=self.sample_rate,
-            channels=1,
-            dtype="int16",
-            blocksize=512,
-            callback=self._audio_callback,
-        )
-        self._stream.start()
+        try:
+            device_idx = self._resolve_device()
+            self._stream = sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=1,
+                dtype="int16",
+                blocksize=512,
+                callback=self._audio_callback,
+                device=device_idx,
+            )
+            self._stream.start()
+            device_name = sd.query_devices(device_idx or sd.default.device[0], 'input')['name']
+            print(f"[ClapDetector] Listening on: {device_name}")
+            threading.Thread(target=self._check_stream_health, daemon=True).start()
+        except Exception as e:
+            print(f"[ClapDetector] Failed to open audio device: {e}")
 
     def stop(self):
         if self._stream:
@@ -199,6 +238,7 @@ class AudioEngine:
                 claps_required=clap_settings.get("claps_required", 2),
                 window_ms=clap_settings.get("window_ms", 900),
                 cooldown_s=clap_settings.get("cooldown_s", 2.0),
+                device=clap_settings.get("device"),
             )
 
         if voice_settings.get("enabled", False):
