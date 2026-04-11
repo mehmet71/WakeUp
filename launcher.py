@@ -3,6 +3,7 @@ Launcher: Spawns processes from a profile config, waits for their windows,
 then hands off to WindowManager for arrangement.
 """
 
+import os
 import subprocess
 import time
 import threading
@@ -14,16 +15,7 @@ from window_manager import find_window_by_pid, arrange_window, get_monitors
 
 def _resolve_path(raw: str) -> str:
     """Expand env vars and ~ in app paths."""
-    import os
     return str(Path(os.path.expandvars(os.path.expanduser(raw))))
-
-
-def _is_process_running(pid: int) -> bool:
-    try:
-        import psutil
-        return psutil.pid_exists(pid)
-    except ImportError:
-        return True  # Assume running if psutil not available
 
 
 def launch_app(app: dict) -> Optional[int]:
@@ -46,8 +38,6 @@ def launch_app(app: dict) -> Optional[int]:
     cmd = [exe_path] + args
 
     name = app.get("name", Path(exe_path).stem)
-    print(f"[Launcher] Starting '{name}'  →  {exe_path}")
-
     try:
         proc = subprocess.Popen(
             cmd,
@@ -86,7 +76,6 @@ def _arrange_after_launch(app: dict, pid: int, monitors: list[dict]):
         time.sleep(settle)
 
     arrange_window(hwnd, window_cfg, monitors)
-    print(f"[Launcher] ✓ '{name}' arranged.")
 
 
 def execute_profile(profile: dict):
@@ -101,14 +90,6 @@ def execute_profile(profile: dict):
         return
 
     monitors = get_monitors()
-    if monitors:
-        print(f"[Launcher] Detected {len(monitors)} monitor(s):")
-        for m in monitors:
-            r = m["rect"]
-            label = " (primary)" if m["primary"] else ""
-            print(f"  Monitor {m['index']}: {r[2]-r[0]}×{r[3]-r[1]}{label}")
-    else:
-        print("[Launcher] No monitors detected (pywin32 unavailable?) — launching without arrangement.")
 
     threads: list[threading.Thread] = []
 
@@ -131,5 +112,3 @@ def execute_profile(profile: dict):
     # (useful for scripting, less useful for interactive use)
     # for t in threads:
     #     t.join()
-
-    print(f"[Launcher] Profile launched: {len(apps)} app(s) starting.")

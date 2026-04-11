@@ -22,7 +22,6 @@ Or use explicit coordinates:
 """
 
 import time
-import threading
 from typing import Optional
 
 try:
@@ -221,5 +220,4 @@ def arrange_window(hwnd: int, window_cfg: dict, monitors: list[dict]):
         w = window_cfg.get("w", 1280)
         h = window_cfg.get("h", 720)
 
-    print(f"[WindowManager] Positioning hwnd {hwnd} → ({x},{y}) {w}×{h} on monitor {mon_idx}")
     set_window_position(hwnd, x, y, w, h, maximize=maximize)

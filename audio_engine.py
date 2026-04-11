@@ -9,8 +9,10 @@ Vosk model download (small ~50MB English):
   Extract to:  models/vosk-model-small-en-us
 """
 
+import json
 import threading
 import time
+from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
@@ -24,7 +26,6 @@ except ImportError:
 
 try:
     from vosk import Model, KaldiRecognizer
-    import json as _json
     HAS_VOSK = True
 except ImportError:
     HAS_VOSK = False
@@ -96,10 +97,6 @@ class ClapDetector:
             callback=self._audio_callback,
         )
         self._stream.start()
-        print(
-            f"[ClapDetector] Active — threshold={self.threshold}, "
-            f"claps={self.claps_required}, window={int(self.window_ms * 1000)}ms"
-        )
 
     def stop(self):
         if self._stream:
@@ -132,14 +129,9 @@ class VoiceListener:
         self._thread: Optional[threading.Thread] = None
         self._recognizer: Optional[object] = None
 
-        if not HAS_VOSK:
-            print("[VoiceListener] Vosk not available, skipping init.")
-            return
-        if not HAS_SD:
-            print("[VoiceListener] sounddevice not available, skipping init.")
+        if not HAS_VOSK or not HAS_SD:
             return
 
-        from pathlib import Path
         if not Path(model_path).exists():
             print(
                 f"[VoiceListener] Model not found at '{model_path}'.\n"
@@ -150,7 +142,6 @@ class VoiceListener:
 
         model = Model(model_path)
         self._recognizer = KaldiRecognizer(model, sample_rate)
-        print(f"[VoiceListener] Vosk model loaded from '{model_path}'")
 
     def start(self):
         if not self._recognizer:
@@ -160,8 +151,6 @@ class VoiceListener:
         self._thread.start()
 
     def _listen_loop(self):
-        import json
-
         try:
             with sd.RawInputStream(
                 samplerate=self.sample_rate,
@@ -169,14 +158,12 @@ class VoiceListener:
                 dtype="int16",
                 blocksize=4000,
             ) as stream:
-                print("[VoiceListener] Listening for voice commands…")
                 while self._running:
                     data, _ = stream.read(4000)
                     if self._recognizer.AcceptWaveform(bytes(data)):
                         result = json.loads(self._recognizer.Result())
                         text = result.get("text", "").strip().lower()
                         if text:
-                            print(f"[VoiceListener] Heard: '{text}'")
                             threading.Thread(
                                 target=self.on_keyword,
                                 args=(text,),
@@ -238,7 +225,6 @@ class AudioEngine:
         """Live-tune clap sensitivity (0.0 - 1.0). Lower = more sensitive."""
         if self._clap:
             self._clap.update_threshold(value)
-            print(f"[AudioEngine] Clap threshold set to {value:.2f}")
 
     def update_clap_settings(self, clap_settings: dict):
         if not self._clap:
@@ -247,7 +233,3 @@ class AudioEngine:
         self._clap.claps_required = clap_settings.get("claps_required", self._clap.claps_required)
         self._clap.window_ms = clap_settings.get("window_ms", self._clap.window_ms * 1000) / 1000
         self._clap.cooldown_s = clap_settings.get("cooldown_s", self._clap.cooldown_s)
-        print(
-            f"[ClapDetector] Updated — threshold={self._clap.threshold}, "
-            f"claps={self._clap.claps_required}, window={int(self._clap.window_ms * 1000)}ms"
-        )

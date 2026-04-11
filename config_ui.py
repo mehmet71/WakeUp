@@ -4,7 +4,6 @@ Run with: python config_ui.py
 """
 
 import json
-import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
@@ -132,15 +131,13 @@ class AppDialog(tk.Toplevel):
         self.resizable(False, False)
         self.grab_set()
 
-        pad = dict(padx=20, pady=6)
-
         # ---- fields ----
         fields = tk.Frame(self, bg=BG)
         fields.pack(fill="x", padx=24, pady=(20, 0))
         fields.columnconfigure(1, weight=1)
 
         self.v_name    = labeled_entry(fields, "Display name",  0, self.data.get("name", ""))
-        self.v_hotkey  = labeled_entry(fields, "Delay (s)",     2, str(self.data.get("delay", 0)))
+        self.v_delay   = labeled_entry(fields, "Delay (s)",     2, str(self.data.get("delay", 0)))
 
         # Path row with Browse button
         tk.Label(fields, text="Executable path", bg=BG, fg=FG2, font=FONT_SM).grid(
@@ -208,7 +205,7 @@ class AppDialog(tk.Toplevel):
             messagebox.showwarning("Missing fields", "Name and path are required.", parent=self)
             return
         try:
-            delay = float(self.v_hotkey.get().strip() or "0")
+            delay = float(self.v_delay.get().strip() or "0")
         except ValueError:
             messagebox.showwarning("Invalid", "Delay must be a number.", parent=self)
             return
@@ -327,8 +324,6 @@ class WakeUpConfigUI(tk.Tk):
             lambda e: scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all")))
         scroll_canvas.bind("<MouseWheel>",
             lambda e: scroll_canvas.yview_scroll(-1 * (e.delta // 120), "units"))
-
-        pad = dict(padx=28, pady=0)
 
         # Profile name
         name_row = tk.Frame(self.detail, bg=BG)
@@ -475,7 +470,6 @@ class WakeUpConfigUI(tk.Tk):
     def _tree_to_apps(self) -> list:
         apps = []
         for iid in self.apps_tree.get_children():
-            data = self.apps_tree.item(iid, "values")
             app_obj = json.loads(self.apps_tree.item(iid, "tags")[0])
             apps.append(app_obj)
         return apps
@@ -581,13 +575,6 @@ class WakeUpConfigUI(tk.Tk):
                 ),
                 tags=(json.dumps(app),)
             )
-
-    def _selected_app_idx(self) -> int | None:
-        sel = self.apps_tree.selection()
-        if not sel:
-            return None
-        children = self.apps_tree.get_children()
-        return list(children).index(sel[0])
 
     def _app_add(self):
         dlg = AppDialog(self)

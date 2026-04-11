@@ -106,7 +106,6 @@ class WakeUp:
     def _trigger(self, profile_name: str):
         with self._lock:
             if self._busy:
-                print("[WakeUp] Already launching a profile, ignoring trigger.")
                 return
             if profile_name not in self.profiles:
                 print(f"[WakeUp] Unknown profile '{profile_name}'.")
@@ -145,7 +144,6 @@ class WakeUp:
                 pynput_hk = _to_pynput(hk)
                 profile_name = name
                 hotkey_map[pynput_hk] = lambda pn=profile_name: self._trigger(pn)
-                print(f"[WakeUp] Hotkey '{hk}' → profile '{name}'")
 
         if hotkey_map:
             listener = _kb.GlobalHotKeys(hotkey_map)
@@ -176,7 +174,6 @@ class WakeUp:
         return pystray.Menu(*items)
 
     def _reload(self):
-        print("[WakeUp] Reloading config…")
         self.config = load_config()
         self.profiles = self.config["profiles"]
         self.settings = self.config.get("settings", {})
@@ -188,7 +185,6 @@ class WakeUp:
             self._hotkey_listener.stop()
         self._register_hotkeys()
         self.audio.update_clap_settings(self.settings.get("clap_detection", {}))
-        print("[WakeUp] Config reloaded.")
 
     # ------------------------------------------------------------------ #
     #  Start                                                               #
@@ -198,16 +194,13 @@ class WakeUp:
         if getattr(self, "_shutting_down", False):
             return
         self._shutting_down = True
-        print("[WakeUp] Shutting down…")
         if self._icon:
             self._icon.stop()
         self.audio.stop()
 
     def run(self):
-        print("[WakeUp] Starting…")
         self._register_hotkeys()
         self.audio.start()
-        print("[WakeUp] Audio engine active. Listening for claps and keywords.")
 
         atexit.register(self._shutdown)
 
@@ -220,7 +213,6 @@ class WakeUp:
             )
             def _on_tray_ready(icon):
                 icon.visible = True
-                print("[WakeUp] Tray icon active. Right-click for options.")
 
             self._icon.run(setup=_on_tray_ready)
         else:
