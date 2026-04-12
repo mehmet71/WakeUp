@@ -1,16 +1,6 @@
 {
   "settings": {
     "default_profile": "work",
-    "clap_detection": {
-      "enabled": true,
-      "claps_required": 2,
-      "window_ms": 900,
-      "threshold": 0.15,
-      "cooldown_s": 2.0,
-      "device": "WH-1000XM5",
-      "_note_threshold": "Lower = more sensitive. 0.15 for quiet rooms, 0.35 for noisy.",
-      "_note_device": "Name substring or device index. Run wakeup.py to see available devices."
-    },
     "voice": {
       "enabled": false,
       "_note": "Set enabled=true after downloading a Vosk model.",

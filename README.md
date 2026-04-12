@@ -10,8 +10,8 @@ Your personal workspace launcher.
 pip install -r requirements.txt
 ```
 
-> Run your terminal as Administrator once during first setup — the `keyboard`
-> library needs elevated rights to register global hotkeys.
+> Run your terminal as Administrator once during first setup — `pynput`
+> needs elevated rights to register global hotkeys.
 
 ### 2. Configure your profiles
 
@@ -70,26 +70,10 @@ A tray icon appears (bottom-right taskbar). Right-click for the menu.
 
 | Trigger | How |
 |---------|-----|
-| Double clap | Clap twice within ~900ms |
 | Voice keyword | Say any phrase in `trigger_keywords` (requires Vosk, see below) |
 | Hotkey | Press the hotkey defined in the profile |
 | Tray menu | Right-click the tray icon |
 | Console | Type the profile name when running without tray |
-
----
-
-## Tuning Clap Detection
-
-In `profiles.json` → `settings.clap_detection`:
-
-```json
-"threshold": 0.25
-```
-
-- **Too many false positives?** Raise threshold (0.35, 0.45)
-- **Claps not detected?** Lower threshold (0.15, 0.18)
-- Quiet home office → ~0.15–0.20
-- Open office / noisy room → 0.30–0.40
 
 ---
 
@@ -127,9 +111,11 @@ python wakeup.py
 ```
 WakeUp/
 ├── wakeup.py          ← Main entry point & orchestrator
-├── audio_engine.py    ← Clap detection + Vosk voice listener
+├── audio_engine.py    ← Vosk voice keyword listener
 ├── launcher.py        ← App spawning + window arrangement trigger
 ├── window_manager.py  ← Monitor detection, presets, win32 positioning
+├── config_ui.py       ← Visual config editor
+├── capture_service.py ← Desktop snapshot → draft mode records
 ├── profiles.json      ← Your configuration
 ├── requirements.txt
 └── models/            ← Place Vosk models here (optional)
@@ -139,6 +125,7 @@ WakeUp/
 
 ## Roadmap
 
-- [x] Phase 1 — Profile-based app launcher (hotkey + clap + voice keywords)
+- [x] Phase 1 — Profile-based app launcher (hotkey + voice keywords)
 - [x] Phase 2 — Window arrangement with multi-monitor support
-- [ ] Phase 3 — Local voice agent (Whisper STT + LLM + TTS)
+- [ ] Phase 3 — Capture-based mode creation (snapshot current desktop → new mode)
+- [ ] Phase 4 — Local voice agent (Whisper STT + LLM + TTS)

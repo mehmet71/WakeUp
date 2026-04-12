@@ -81,20 +81,13 @@ class WakeUp:
                 self.keyword_map[kw.lower()] = name
 
         self.audio = AudioEngine(
-            clap_settings=self.settings.get("clap_detection", {}),
             voice_settings=self.settings.get("voice", {}),
-            on_clap=self._on_clap,
             on_keyword=self._on_keyword,
         )
 
     # ------------------------------------------------------------------ #
     #  Trigger handlers                                                    #
     # ------------------------------------------------------------------ #
-
-    def _on_clap(self):
-        default = self.settings.get("default_profile", "work")
-        print(f"[WakeUp] Clap detected → launching profile '{default}'")
-        self._trigger(default)
 
     def _on_keyword(self, keyword: str):
         profile_name = self.keyword_map.get(keyword.lower())
@@ -183,7 +176,6 @@ class WakeUp:
         if HAS_KEYBOARD and hasattr(self, "_hotkey_listener"):
             self._hotkey_listener.stop()
         self._register_hotkeys()
-        self.audio.update_clap_settings(self.settings.get("clap_detection", {}))
 
     # ------------------------------------------------------------------ #
     #  Start                                                               #
