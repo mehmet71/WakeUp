@@ -15,7 +15,15 @@ pip install -r requirements.txt
 
 ### 2. Configure your profiles
 
-Edit `profiles.json`. Each profile has:
+Open the visual config editor:
+
+```bash
+python config_ui.py
+```
+
+From there you can create modes manually or use **Capture current setup** to snapshot your open windows automatically (see [Creating a Mode from Your Desktop](#creating-a-mode-from-your-desktop) below).
+
+**Advanced / manual editing:** You can also edit `profiles.json` directly. Each profile follows this shape:
 
 ```json
 "work": {
@@ -63,6 +71,45 @@ python wakeup.py
 ```
 
 A tray icon appears (bottom-right taskbar). Right-click for the menu.
+
+---
+
+## Creating a Mode from Your Desktop
+
+The fastest way to create a mode is to capture your current setup:
+
+1. Open the apps you want in this mode and arrange them on your monitors
+2. Open the Config Editor: `python config_ui.py`
+3. Click **+ New mode** → **Capture current setup**
+4. Click **Capture now**
+5. Review each detected app — set the VS Code folder, Chrome URLs, etc.
+6. Name the mode, set a hotkey if you want one, then click **Save mode**
+
+The mode is saved immediately and appears in the sidebar.
+
+---
+
+## Review Step
+
+WakeUp can detect which apps are open and where their windows are, but it cannot automatically know:
+- Which folder VS Code should open
+- Which URLs Chrome should load
+
+The review step lets you fill in these details before saving. For each captured app you can also change the monitor, window preset, or remove it entirely.
+
+---
+
+## Advanced Editor
+
+For full control — raw `args`, exact pixel coordinates, per-app delays — click **Advanced JSON…** from the mode-detail screen. The editor validates JSON before applying changes.
+
+---
+
+## Known Limitations
+
+- Chrome tabs are not auto-imported; use starter URLs in the review step instead
+- VS Code workspace is not auto-detected; choose the folder manually
+- Some background or system windows may appear in capture results — remove them during review
 
 ---
 
@@ -127,5 +174,5 @@ WakeUp/
 
 - [x] Phase 1 — Profile-based app launcher (hotkey + voice keywords)
 - [x] Phase 2 — Window arrangement with multi-monitor support
-- [ ] Phase 3 — Capture-based mode creation (snapshot current desktop → new mode)
+- [x] Phase 3 — Capture-based mode creation (snapshot current desktop → new mode)
 - [ ] Phase 4 — Local voice agent (Whisper STT + LLM + TTS)

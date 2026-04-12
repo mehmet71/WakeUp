@@ -90,6 +90,8 @@ class WakeUp:
     # ------------------------------------------------------------------ #
 
     def _on_keyword(self, keyword: str):
+        if len(keyword) > 200:
+            return
         profile_name = self.keyword_map.get(keyword.lower())
         if profile_name:
             print(f"[WakeUp] Keyword '{keyword}' → launching profile '{profile_name}'")

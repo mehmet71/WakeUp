@@ -52,6 +52,37 @@ VIEW_MODE_DETAIL     = "mode_detail"
 VIEW_ADVANCED        = "advanced"
 
 
+# ------------------------------------------------------------------ #
+#  Launch behavior mapping (Contract C6)                              #
+# ------------------------------------------------------------------ #
+
+_BEHAVIOR_OPTIONS = {
+    "vscode":  ["vscode_folder", "vscode_session", "plain"],
+    "chrome":  ["chrome_urls", "chrome_new_window"],
+    "browser": ["chrome_urls", "chrome_new_window"],
+    "generic": ["plain"],
+}
+
+_BEHAVIOR_LABELS = {
+    "vscode_folder":     "Open folder/workspace",
+    "vscode_session":    "Reopen last session",
+    "plain":             "Launch plain",
+    "chrome_urls":       "Open these URLs",
+    "chrome_new_window": "Open new window",
+}
+
+_EMPTY_DRAFT: dict = {
+    "name": "",
+    "path": "",
+    "window_title": "",
+    "window": {"monitor": 0, "preset": "full", "x": 0, "y": 0, "w": 1280, "h": 720},
+    "app_type": "generic",
+    "launch_behavior": "plain",
+    "launch_details": {},
+    "confidence": "low",
+}
+
+
 def apply_theme(root: tk.Tk):
     root.configure(bg=BG)
     style = ttk.Style(root)
@@ -237,7 +268,8 @@ class AppDialog(tk.Toplevel):
             return
 
         args_raw = self.v_args.get().strip()
-        args = args_raw.split() if args_raw else []
+        import shlex
+        args = shlex.split(args_raw) if args_raw else []
 
         self.result = {
             "name": name,
@@ -449,21 +481,620 @@ class WakeUpConfigUI(tk.Tk):
         back.pack(anchor="w", pady=(20, 0))
         back.bind("<Button-1>", lambda _e: self._show_view(VIEW_HOME))
 
+    # ---------------------------------------------------------------- #
+    #  S3: Capture flow                                                  #
+    # ---------------------------------------------------------------- #
+
     def _build_capture(self):
-        tk.Label(self._view_frame, text="Capture screen — coming soon",
-                 bg=BG, fg=FG2, font=FONT).pack(pady=60)
+        container = tk.Frame(self._view_frame, bg=BG)
+        container.pack(fill="both", expand=True, padx=32, pady=24)
+
+        section_heading(container, "Capture your current setup")
+
+        tk.Label(
+            container,
+            text=(
+                "Open the apps you want in this mode and arrange them on your monitors.\n"
+                "When ready, click Capture."
+            ),
+            bg=BG, fg=FG2, font=FONT, justify="left",
+        ).pack(anchor="w", pady=(0, 24))
+
+        # Status label — updated inline during capture
+        status_var = tk.StringVar()
+        status_lbl = tk.Label(container, textvariable=status_var,
+                              bg=BG, fg=FG2, font=FONT_SM)
+        status_lbl.pack(anchor="w", pady=(0, 12))
+
+        def _do_capture():
+            status_var.set("Capturing…")
+            container.update_idletasks()
+            try:
+                from capture_service import capture_current_desktop
+                drafts = capture_current_desktop()
+            except Exception as exc:
+                status_var.set(f"Error: {exc}")
+                return
+
+            if not drafts:
+                status_var.set(
+                    "No windows detected. Make sure your apps are open and visible."
+                )
+                return
+
+            monitor_count = len({d["window"]["monitor"] for d in drafts})
+            status_var.set(
+                f"Found {len(drafts)} app{'s' if len(drafts) != 1 else ''} "
+                f"on {monitor_count} monitor{'s' if monitor_count != 1 else ''}."
+            )
+            self._draft_apps = drafts
+            self.after(400, lambda: self._show_view(VIEW_REVIEW))
+
+        icon_btn(container, "  Capture now  ", _do_capture,
+                 style="Accent.TButton").pack(anchor="w")
+
+        # Secondary actions
+        sec = tk.Frame(container, bg=BG)
+        sec.pack(anchor="w", pady=(20, 0))
+
+        back_lbl = tk.Label(sec, text="← Back", bg=BG, fg=ACCENT,
+                            font=FONT, cursor="hand2")
+        back_lbl.pack(side="left")
+        back_lbl.bind("<Button-1>",
+                      lambda _e: self._show_view(VIEW_NEW_MODE_CHOICE))
+
+        tk.Label(sec, text="  or  ", bg=BG, fg=FG2, font=FONT).pack(side="left")
+
+        manual_lbl = tk.Label(sec, text="Build manually instead", bg=BG,
+                              fg=ACCENT, font=FONT, cursor="hand2")
+        manual_lbl.pack(side="left")
+
+        def _go_manual(_e=None):
+            name = self._unique_name("new-mode")
+            self.profiles[name] = {
+                "trigger_keywords": [], "hotkey": "", "message": "", "apps": []
+            }
+            self._current_profile = name
+            self._draft_apps = None
+            self._refresh_profile_list(select=name)
+            self._mark_dirty()
+            self._show_view(VIEW_MODE_DETAIL)
+
+        manual_lbl.bind("<Button-1>", _go_manual)
 
     def _build_review(self):
-        tk.Label(self._view_frame, text="Review screen — coming soon",
-                 bg=BG, fg=FG2, font=FONT).pack(pady=60)
+        # ── outer scrollable canvas ───────────────────────────────────
+        outer = tk.Frame(self._view_frame, bg=BG)
+        outer.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(outer, bg=BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        scroll_frame = tk.Frame(canvas, bg=BG)
+        win_id = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+
+        def _on_frame_resize(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas_resize(event):
+            canvas.itemconfig(win_id, width=event.width)
+
+        scroll_frame.bind("<Configure>", _on_frame_resize)
+        canvas.bind("<Configure>", _on_canvas_resize)
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # ── header ───────────────────────────────────────────────────
+        header = tk.Frame(scroll_frame, bg=BG)
+        header.pack(fill="x", padx=32, pady=(24, 8))
+
+        section_heading(header, "Review captured apps")
+
+        drafts = self._draft_apps or []
+        tk.Label(
+            header,
+            text=f"{len(drafts)} app{'s' if len(drafts) != 1 else ''} captured. "
+                 "Review and configure each one before saving.",
+            bg=BG, fg=FG2, font=FONT,
+        ).pack(anchor="w")
+
+        # ── app cards ────────────────────────────────────────────────
+        cards_frame = tk.Frame(scroll_frame, bg=BG)
+        cards_frame.pack(fill="x", padx=32, pady=(12, 0))
+
+        def _rebuild():
+            self._show_view(VIEW_REVIEW)
+
+        for i, draft in enumerate(drafts):
+            self._build_app_card(cards_frame, draft, i, on_remove=_rebuild)
+
+        # ── bottom actions ───────────────────────────────────────────
+        actions = tk.Frame(scroll_frame, bg=BG)
+        actions.pack(fill="x", padx=32, pady=(16, 32))
+
+        icon_btn(actions, "Continue →", lambda: self._show_view(VIEW_MODE_DETAIL),
+                 style="Accent.TButton").pack(side="left")
+
+        def _add_manual():
+            self._draft_apps = self._draft_apps or []
+            self._draft_apps.append(deepcopy(_EMPTY_DRAFT))
+            _rebuild()
+
+        icon_btn(actions, "+ Add app manually", _add_manual).pack(
+            side="left", padx=(10, 0))
+
+        back_lbl = tk.Label(actions, text="← Back to capture", bg=BG,
+                            fg=ACCENT, font=FONT, cursor="hand2")
+        back_lbl.pack(side="left", padx=(16, 0))
+        back_lbl.bind("<Button-1>", lambda _e: self._show_view(VIEW_CAPTURE))
+
+    def _build_app_card(
+        self,
+        parent: tk.Frame,
+        draft: dict,
+        index: int,
+        on_remove=None,
+    ) -> tk.Frame:
+        """Render one DraftApp as an editable card inside `parent`."""
+
+        card = card_frame(parent, fill="x", pady=(0, 10))
+        card.columnconfigure(0, weight=1)
+
+        # ── header row: index + confidence badge + remove ─────────
+        top = tk.Frame(card, bg=BG2)
+        top.pack(fill="x", pady=(0, 8))
+
+        confidence = draft.get("confidence", "low")
+        badge_colors = {"high": GREEN, "medium": "#e8a838", "low": RED}
+        badge_fg = badge_colors.get(confidence, FG2)
+
+        tk.Label(top, text=f"App {index + 1}", bg=BG2, fg=FG,
+                 font=FONT_B).pack(side="left")
+        tk.Label(top, text=f"  {confidence} confidence",
+                 bg=BG2, fg=badge_fg, font=FONT_SM).pack(side="left")
+
+        if on_remove:
+            def _remove():
+                if self._draft_apps is not None and index < len(self._draft_apps):
+                    self._draft_apps.pop(index)
+                on_remove()
+
+            icon_btn(top, "Remove", _remove, style="Danger.TButton").pack(
+                side="right")
+
+        # ── form grid ─────────────────────────────────────────────
+        form = tk.Frame(card, bg=BG2)
+        form.pack(fill="x")
+        form.columnconfigure(1, weight=1)
+
+        row = 0
+
+        # Name
+        tk.Label(form, text="Name", bg=BG2, fg=FG2, font=FONT_SM).grid(
+            row=row, column=0, sticky="w", padx=(0, 12), pady=3)
+        v_name = tk.StringVar(value=draft.get("name", ""))
+
+        def _sync_name(*_):
+            draft["name"] = v_name.get()
+
+        v_name.trace_add("write", _sync_name)
+        ttk.Entry(form, textvariable=v_name).grid(
+            row=row, column=1, sticky="ew", pady=3)
+        row += 1
+
+        # Path
+        tk.Label(form, text="Executable", bg=BG2, fg=FG2, font=FONT_SM).grid(
+            row=row, column=0, sticky="w", padx=(0, 12), pady=3)
+        path_row = tk.Frame(form, bg=BG2)
+        path_row.grid(row=row, column=1, sticky="ew", pady=3)
+        path_row.columnconfigure(0, weight=1)
+
+        v_path = tk.StringVar(value=draft.get("path", ""))
+
+        def _sync_path(*_):
+            draft["path"] = v_path.get()
+
+        v_path.trace_add("write", _sync_path)
+        ttk.Entry(path_row, textvariable=v_path).grid(
+            row=0, column=0, sticky="ew")
+
+        def _browse_path():
+            p = filedialog.askopenfilename(
+                title="Select executable",
+                filetypes=[("Executables", "*.exe"), ("All files", "*.*")],
+            )
+            if p:
+                v_path.set(p)
+
+        ttk.Button(path_row, text="Browse…", command=_browse_path, width=9).grid(
+            row=0, column=1, padx=(6, 0))
+        row += 1
+
+        # Monitor + preset on the same row
+        tk.Label(form, text="Monitor", bg=BG2, fg=FG2, font=FONT_SM).grid(
+            row=row, column=0, sticky="w", padx=(0, 12), pady=3)
+        win_row = tk.Frame(form, bg=BG2)
+        win_row.grid(row=row, column=1, sticky="w", pady=3)
+
+        v_monitor = tk.StringVar(
+            value=str(draft.get("window", {}).get("monitor", 0)))
+
+        def _sync_monitor(*_):
+            try:
+                draft.setdefault("window", {})["monitor"] = int(v_monitor.get())
+            except ValueError:
+                pass
+
+        v_monitor.trace_add("write", _sync_monitor)
+        ttk.Spinbox(win_row, textvariable=v_monitor, from_=0, to=5, width=4,
+                    background=BG3, foreground=FG).pack(side="left")
+
+        tk.Label(win_row, text="  Preset", bg=BG2, fg=FG2,
+                 font=FONT_SM).pack(side="left", padx=(12, 6))
+
+        current_preset = draft.get("window", {}).get("preset") or "full"
+        v_preset = tk.StringVar(value=current_preset)
+
+        def _sync_preset(*_):
+            draft.setdefault("window", {})["preset"] = v_preset.get()
+
+        v_preset.trace_add("write", _sync_preset)
+        ttk.Combobox(win_row, textvariable=v_preset, values=PRESETS,
+                     state="readonly", width=18).pack(side="left")
+        row += 1
+
+        # Launch behavior
+        tk.Label(form, text="Launch as", bg=BG2, fg=FG2, font=FONT_SM).grid(
+            row=row, column=0, sticky="w", padx=(0, 12), pady=3)
+
+        app_type = draft.get("app_type", "generic")
+        behavior_keys = _BEHAVIOR_OPTIONS.get(app_type, ["plain"])
+        behavior_labels = [_BEHAVIOR_LABELS.get(k, k) for k in behavior_keys]
+
+        current_behavior = draft.get("launch_behavior", behavior_keys[0])
+        current_label = _BEHAVIOR_LABELS.get(current_behavior, current_behavior)
+        if current_label not in behavior_labels:
+            current_label = behavior_labels[0]
+
+        v_behavior_label = tk.StringVar(value=current_label)
+        behavior_cb = ttk.Combobox(
+            form, textvariable=v_behavior_label,
+            values=behavior_labels, state="readonly", width=28)
+        behavior_cb.grid(row=row, column=1, sticky="w", pady=3)
+        row += 1
+
+        # Detail widget area (swapped by behavior selection)
+        detail_frame = tk.Frame(form, bg=BG2)
+        detail_frame.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(2, 0))
+        row += 1
+
+        def _build_detail_widget(behavior_key: str):
+            for w in detail_frame.winfo_children():
+                w.destroy()
+
+            if behavior_key == "vscode_folder":
+                tk.Label(detail_frame, text="Folder/workspace", bg=BG2,
+                         fg=FG2, font=FONT_SM).grid(
+                    row=0, column=0, sticky="w", padx=(0, 12), pady=3)
+                f_row = tk.Frame(detail_frame, bg=BG2)
+                f_row.grid(row=0, column=1, sticky="ew", pady=3)
+                f_row.columnconfigure(0, weight=1)
+                detail_frame.columnconfigure(1, weight=1)
+
+                v_folder = tk.StringVar(
+                    value=draft.get("launch_details", {}).get("folder", ""))
+
+                def _sync_folder(*_):
+                    draft.setdefault("launch_details", {})["folder"] = v_folder.get()
+
+                v_folder.trace_add("write", _sync_folder)
+                ttk.Entry(f_row, textvariable=v_folder).grid(
+                    row=0, column=0, sticky="ew")
+
+                def _browse_folder():
+                    p = filedialog.askdirectory(title="Select folder")
+                    if p:
+                        v_folder.set(p)
+
+                ttk.Button(f_row, text="Browse…", command=_browse_folder,
+                           width=9).grid(row=0, column=1, padx=(6, 0))
+
+            elif behavior_key == "chrome_urls":
+                tk.Label(detail_frame, text="URLs (one per line)",
+                         bg=BG2, fg=FG2, font=FONT_SM).grid(
+                    row=0, column=0, sticky="nw", padx=(0, 12), pady=3)
+                detail_frame.columnconfigure(1, weight=1)
+
+                existing_urls = draft.get("launch_details", {}).get("urls", [])
+                txt = dark_text(detail_frame, height=3, width=36)
+                txt.insert("1.0", "\n".join(existing_urls))
+                txt.grid(row=0, column=1, sticky="ew", pady=3)
+
+                def _sync_urls(_event=None):
+                    raw = txt.get("1.0", "end").strip()
+                    draft.setdefault("launch_details", {})["urls"] = (
+                        [u.strip() for u in raw.splitlines() if u.strip()]
+                    )
+
+                txt.bind("<FocusOut>", _sync_urls)
+                txt.bind("<KeyRelease>", _sync_urls)
+
+        def _on_behavior_change(_event=None):
+            selected_label = v_behavior_label.get()
+            # Reverse lookup label → key
+            key = current_behavior
+            for k, lbl in _BEHAVIOR_LABELS.items():
+                if lbl == selected_label:
+                    key = k
+                    break
+            draft["launch_behavior"] = key
+            draft["launch_details"] = {}
+            _build_detail_widget(key)
+
+        behavior_cb.bind("<<ComboboxSelected>>", _on_behavior_change)
+
+        # Render initial detail widget
+        _build_detail_widget(current_behavior)
+
+        return card
 
     def _build_mode_detail(self):
-        tk.Label(self._view_frame, text="Mode detail — coming soon",
-                 bg=BG, fg=FG2, font=FONT).pack(pady=60)
+        # Allow entry with no profile when arriving from capture flow
+        if self._draft_apps is None and (
+            not self._current_profile or self._current_profile not in self.profiles
+        ):
+            tk.Label(self._view_frame, text="No mode selected.",
+                     bg=BG, fg=FG2, font=FONT).pack(pady=60)
+            return
+
+        profile = self.profiles.get(self._current_profile, {}) if self._current_profile else {}
+
+        # ── outer scrollable canvas ───────────────────────────────────
+        outer = tk.Frame(self._view_frame, bg=BG)
+        outer.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(outer, bg=BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        scroll_frame = tk.Frame(canvas, bg=BG)
+        win_id = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+
+        scroll_frame.bind("<Configure>",
+                          lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>",
+                    lambda e: canvas.itemconfig(win_id, width=e.width))
+        canvas.bind_all("<MouseWheel>",
+                        lambda e: canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
+
+        container = tk.Frame(scroll_frame, bg=BG)
+        container.pack(fill="both", expand=True, padx=32, pady=24)
+        container.columnconfigure(1, weight=1)
+
+        # ── header ───────────────────────────────────────────────────
+        header = tk.Frame(container, bg=BG)
+        header.pack(fill="x", pady=(0, 16))
+
+        section_heading(header, "Mode settings")
+
+        # ── form fields ──────────────────────────────────────────────
+        form = tk.Frame(container, bg=BG)
+        form.pack(fill="x")
+        form.columnconfigure(1, weight=1)
+
+        # Inline warning label (shared, hidden by default)
+        self._warn_label = tk.Label(form, text="", bg=BG, fg=RED, font=FONT_SM)
+
+        # Mode name — empty for new modes from capture flow
+        initial_name = self._current_profile if (self._current_profile and self._draft_apps is None) else ""
+        self._v_mode_name = labeled_entry(form, "Mode name", 0, initial_name)
+        self._v_mode_name.trace_add("write", self._mark_dirty)
+
+        # Hotkey
+        self._v_hotkey = labeled_entry(form, "Hotkey", 1,
+                                       profile.get("hotkey", ""))
+        tk.Label(form, text="e.g. ctrl+alt+w", bg=BG, fg=FG2,
+                 font=FONT_SM).grid(row=1, column=2, sticky="w", padx=(6, 0))
+        self._v_hotkey.trace_add("write", self._mark_dirty)
+
+        # Trigger keywords
+        tk.Label(form, text="Trigger keywords", bg=BG, fg=FG2,
+                 font=FONT_SM).grid(row=2, column=0, sticky="nw",
+                                    padx=(0, 12), pady=4)
+        self._txt_keywords = dark_text(form, height=2, width=40)
+        self._txt_keywords.insert("1.0", ", ".join(profile.get("trigger_keywords", [])))
+        self._txt_keywords.grid(row=2, column=1, sticky="ew", pady=4)
+        tk.Label(form, text="comma-separated", bg=BG, fg=FG2,
+                 font=FONT_SM).grid(row=2, column=2, sticky="nw", padx=(6, 0), pady=4)
+        self._txt_keywords.bind("<KeyRelease>", self._mark_dirty)
+
+        # Launch message
+        tk.Label(form, text="Launch message", bg=BG, fg=FG2,
+                 font=FONT_SM).grid(row=3, column=0, sticky="nw",
+                                    padx=(0, 12), pady=4)
+        self._txt_message = dark_text(form, height=2, width=40)
+        self._txt_message.insert("1.0", profile.get("message", ""))
+        self._txt_message.grid(row=3, column=1, sticky="ew", pady=4)
+        self._txt_message.bind("<KeyRelease>", self._mark_dirty)
+
+        # Warning row (hidden until needed)
+        self._warn_label.grid(row=4, column=1, sticky="w", pady=(0, 4))
+        self._warn_label.grid_remove()
+
+        # ── apps section ─────────────────────────────────────────────
+        apps_header = tk.Frame(container, bg=BG)
+        apps_header.pack(fill="x", pady=(20, 6))
+
+        if self._draft_apps is not None:
+            # Capture flow: show read-only draft summary
+            tk.Label(apps_header, text="Apps", bg=BG, fg=FG, font=FONT_H2).pack(side="left")
+            apps_info = tk.Frame(container, bg=BG)
+            apps_info.pack(fill="x")
+            tk.Label(apps_info,
+                     text=f"{len(self._draft_apps)} app(s) will be saved with this mode.",
+                     bg=BG, fg=FG2, font=FONT_SM).pack(anchor="w")
+            for d in self._draft_apps:
+                tk.Label(apps_info, text=f"  • {d.get('name') or d.get('path', '?')}",
+                         bg=BG, fg=FG2, font=FONT_SM).pack(anchor="w")
+        else:
+            tk.Label(apps_header, text="Apps", bg=BG, fg=FG, font=FONT_H2).pack(side="left")
+            icon_btn(apps_header, "+ Add app",
+                     lambda: self._add_app_to_profile(), style="Accent.TButton").pack(side="right")
+            self._apps_frame = tk.Frame(container, bg=BG)
+            self._apps_frame.pack(fill="x")
+            self._render_profile_apps()
+
+        # ── bottom actions ───────────────────────────────────────────
+        actions = tk.Frame(container, bg=BG)
+        actions.pack(fill="x", pady=(20, 0))
+
+        icon_btn(actions, "Save mode", self._save_mode,
+                 style="Accent.TButton").pack(side="left")
+        icon_btn(actions, "Test this mode", self._test_current_mode).pack(
+            side="left", padx=(10, 0))
+        if self._draft_apps is not None:
+            icon_btn(actions, "← Back to review",
+                     lambda: self._show_view(VIEW_REVIEW)).pack(side="left", padx=(10, 0))
+        else:
+            icon_btn(actions, "Advanced JSON…",
+                     lambda: self._show_view(VIEW_ADVANCED)).pack(side="left", padx=(10, 0))
+            icon_btn(actions, "Delete mode",
+                     self._delete_profile, style="Danger.TButton").pack(side="right")
+
+    def _render_profile_apps(self):
+        """Re-render the app list rows inside self._apps_frame."""
+        for w in self._apps_frame.winfo_children():
+            w.destroy()
+
+        if not self._current_profile:
+            return
+
+        apps = self.profiles[self._current_profile].get("apps", [])
+        if not apps:
+            tk.Label(self._apps_frame, text="No apps yet. Click '+ Add app' to start.",
+                     bg=BG, fg=FG2, font=FONT_SM).pack(anchor="w", pady=8)
+            return
+
+        for i, app in enumerate(apps):
+            row_frame = card_frame(self._apps_frame, fill="x", pady=(0, 6))
+
+            tk.Label(row_frame, text=app.get("name", "Unnamed"),
+                     bg=BG2, fg=FG, font=FONT_B).pack(side="left")
+            tk.Label(row_frame,
+                     text=f"  {app.get('window', {}).get('preset', '')}  "
+                          f"·  monitor {app.get('window', {}).get('monitor', 0)}",
+                     bg=BG2, fg=FG2, font=FONT_SM).pack(side="left")
+
+            def _edit(idx=i):
+                self._edit_app_in_profile(idx)
+
+            def _remove(idx=i):
+                self.profiles[self._current_profile]["apps"].pop(idx)
+                self._mark_dirty()
+                self._render_profile_apps()
+
+            icon_btn(row_frame, "Remove", _remove, style="Danger.TButton").pack(
+                side="right")
+            icon_btn(row_frame, "Edit", _edit).pack(side="right", padx=(0, 6))
+
+    def _add_app_to_profile(self):
+        dlg = AppDialog(self)
+        self.wait_window(dlg)
+        if dlg.result:
+            self.profiles[self._current_profile].setdefault("apps", []).append(
+                dlg.result)
+            self._mark_dirty()
+            self._render_profile_apps()
+
+    def _edit_app_in_profile(self, index: int):
+        apps = self.profiles[self._current_profile].get("apps", [])
+        dlg = AppDialog(self, apps[index])
+        self.wait_window(dlg)
+        if dlg.result:
+            apps[index] = dlg.result
+            self._mark_dirty()
+            self._render_profile_apps()
 
     def _build_advanced(self):
-        tk.Label(self._view_frame, text="Advanced editor — coming soon",
-                 bg=BG, fg=FG2, font=FONT).pack(pady=60)
+        if not self._current_profile or self._current_profile not in self.profiles:
+            tk.Label(self._view_frame, text="No mode selected.",
+                     bg=BG, fg=FG2, font=FONT).pack(pady=60)
+            return
+
+        container = tk.Frame(self._view_frame, bg=BG)
+        container.pack(fill="both", expand=True, padx=32, pady=24)
+
+        section_heading(container, f"Advanced — {self._current_profile}")
+        tk.Label(container,
+                 text="Edit the raw JSON for this mode. Invalid JSON cannot be saved.",
+                 bg=BG, fg=FG2, font=FONT_SM).pack(anchor="w", pady=(0, 12))
+
+        # JSON text area
+        txt_frame = tk.Frame(container, bg=BG)
+        txt_frame.pack(fill="both", expand=True)
+        txt_frame.columnconfigure(0, weight=1)
+        txt_frame.rowconfigure(0, weight=1)
+
+        txt = tk.Text(
+            txt_frame,
+            bg=BG3, fg=FG, insertbackground=FG,
+            font=("Consolas", 10), relief="flat", padx=10, pady=10,
+            wrap="none", bd=1, highlightthickness=1,
+            highlightbackground=BORDER, highlightcolor=ACCENT,
+        )
+        vscroll = ttk.Scrollbar(txt_frame, orient="vertical", command=txt.yview)
+        hscroll = ttk.Scrollbar(txt_frame, orient="horizontal", command=txt.xview)
+        txt.configure(yscrollcommand=vscroll.set, xscrollcommand=hscroll.set)
+
+        vscroll.grid(row=0, column=1, sticky="ns")
+        hscroll.grid(row=1, column=0, sticky="ew")
+        txt.grid(row=0, column=0, sticky="nsew")
+
+        current_json = json.dumps(
+            self.profiles[self._current_profile], indent=2, ensure_ascii=False)
+        txt.insert("1.0", current_json)
+
+        # Status / error label
+        err_var = tk.StringVar()
+        err_lbl = tk.Label(container, textvariable=err_var,
+                           bg=BG, fg=RED, font=FONT_SM)
+        err_lbl.pack(anchor="w", pady=(6, 0))
+
+        # Actions
+        actions = tk.Frame(container, bg=BG)
+        actions.pack(fill="x", pady=(10, 0))
+
+        def _apply():
+            raw = txt.get("1.0", "end").strip()
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                err_var.set(f"JSON error: {exc}")
+                return
+            if not isinstance(parsed, dict):
+                err_var.set("Must be a JSON object.")
+                return
+            self.profiles[self._current_profile] = parsed
+            self._mark_dirty()
+            err_var.set("")
+            self._show_view(VIEW_MODE_DETAIL)
+
+        icon_btn(actions, "Apply & back", _apply,
+                 style="Accent.TButton").pack(side="left")
+        icon_btn(actions, "Test this mode", self._test_current_mode).pack(
+            side="left", padx=(10, 0))
+        icon_btn(actions, "← Back",
+                 lambda: self._show_view(VIEW_MODE_DETAIL)).pack(
+            side="left", padx=(10, 0))
 
     # ---------------------------------------------------------------- #
     #  Load / Save                                                       #
@@ -493,10 +1124,99 @@ class WakeUpConfigUI(tk.Tk):
         self._update_title()
 
     def _flush_current_profile(self):
-        """Write form values back into self.profiles for the current profile.
-        TODO: S4 will restore full flush logic when _build_mode_detail owns the form.
-        """
-        pass
+        """Flush mode-detail form values into self.profiles. No-op outside mode_detail."""
+        if self._current_view == VIEW_MODE_DETAIL:
+            self._save_mode(quiet=True)
+
+    def _save_mode(self, quiet: bool = False):
+        """Read form vars and persist them into profiles, then write to disk."""
+        # -- mode name --
+        new_name = self._v_mode_name.get().strip()
+        if not new_name:
+            if not quiet:
+                self._show_field_warning("Mode name cannot be empty.")
+            return
+
+        old_name = self._current_profile  # may be None for new capture-flow mode
+        if old_name and new_name != old_name and new_name in self.profiles:
+            if not quiet:
+                self._show_field_warning(f"A mode named '{new_name}' already exists.")
+            return
+
+        profile = self.profiles.get(old_name, {}) if old_name else {}
+
+        # -- rename or create --
+        if old_name and new_name != old_name and old_name in self.profiles:
+            del self.profiles[old_name]
+
+        # -- scalar fields --
+        profile["hotkey"] = self._v_hotkey.get().strip()
+        profile["message"] = self._txt_message.get("1.0", "end").strip()
+        raw_kw = self._txt_keywords.get("1.0", "end").strip()
+        profile["trigger_keywords"] = (
+            [k.strip() for k in raw_kw.split(",") if k.strip()] if raw_kw else []
+        )
+
+        # -- apps: convert drafts if coming from capture flow --
+        if self._draft_apps is not None:
+            from capture_service import draft_to_profile_app
+            profile["apps"] = [draft_to_profile_app(d) for d in self._draft_apps]
+        elif "apps" not in profile:
+            profile["apps"] = []
+
+        self.profiles[new_name] = profile
+        self._current_profile = new_name
+        self._draft_apps = None
+        self.config_data["profiles"] = self.profiles
+
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(self.config_data, f, indent=2, ensure_ascii=False)
+
+        self._dirty = False
+        self._update_title()
+        self._refresh_profile_list(select=new_name)
+        if not quiet:
+            self._show_view(VIEW_HOME)
+
+    def _test_current_mode(self):
+        """Launch the current mode's apps in a daemon thread without requiring a save."""
+        from launcher import execute_profile
+
+        if self._draft_apps is not None:
+            from capture_service import draft_to_profile_app
+            apps = [draft_to_profile_app(d) for d in self._draft_apps]
+        elif self._current_profile and self._current_profile in self.profiles:
+            apps = self.profiles[self._current_profile].get("apps", [])
+        else:
+            apps = []
+
+        if not apps:
+            self._show_field_warning("No apps configured — nothing to launch.")
+            return
+
+        import threading
+        threading.Thread(
+            target=execute_profile,
+            args=({"apps": apps},),
+            daemon=True,
+            name="test-mode",
+        ).start()
+
+        self._show_field_warning(
+            f"Launching {len(apps)} app(s)…", duration_ms=3000)
+
+    def _show_field_warning(self, message: str, duration_ms: int = 4000):
+        """Display an inline warning in the mode-detail form for `duration_ms` ms."""
+        if not hasattr(self, "_warn_label") or not self._warn_label.winfo_exists():
+            messagebox.showwarning("Warning", message, parent=self)
+            return
+        self._warn_label.configure(text=f"⚠  {message}")
+        self._warn_label.grid()
+        self.after(duration_ms, self._hide_field_warning)
+
+    def _hide_field_warning(self):
+        if hasattr(self, "_warn_label") and self._warn_label.winfo_exists():
+            self._warn_label.grid_remove()
 
     # ---------------------------------------------------------------- #
     #  Profile list actions                                              #

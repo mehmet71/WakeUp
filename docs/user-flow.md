@@ -108,7 +108,7 @@ Now `Ctrl+Alt+M` or saying *"meeting mode"* arranges that layout instantly.
 
 ---
 
-## Stage 7: Capture-Based Mode Creation *(upcoming)*
+## Stage 7: Capture-Based Mode Creation
 
 **User:** They've arranged their apps exactly how they like for a new workflow. Instead of recreating it manually, they:
 
@@ -131,6 +131,6 @@ Now `Ctrl+Alt+M` or saying *"meeting mode"* arranges that layout instantly.
 | 4 — Daily use | Muscle memory for hotkeys | Ongoing |
 | 5 — Voice (optional) | Hands-free triggers | 10 min setup |
 | 6 — New profiles | Custom modes for any context | 5 min each |
-| 7 — Capture *(upcoming)* | Snapshot real layouts instantly | 2 min |
+| 7 — Capture | Snapshot real layouts instantly | 2 min |
 
 The app earns trust at Stage 2, becomes genuinely useful at Stage 3, and becomes indispensable at Stage 4.

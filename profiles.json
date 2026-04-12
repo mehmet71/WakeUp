@@ -154,6 +154,25 @@
           }
         }
       ]
+    },
+    "test": {
+      "hotkey": "",
+      "message": "",
+      "trigger_keywords": [],
+      "apps": [
+        {
+          "name": "VS Code",
+          "path": "C:\\Users\\mehme\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "args": [
+            "C:/Users/mehme/Desktop/Projects/dev_projects/repos/memoGPT/foundations"
+          ],
+          "delay": 0,
+          "window": {
+            "monitor": 0,
+            "preset": "left-half"
+          }
+        }
+      ]
     }
   },
   "_preset_reference": {
