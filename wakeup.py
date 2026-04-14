@@ -207,7 +207,12 @@ class WakeUp:
             def _on_tray_ready(icon):
                 icon.visible = True
 
-            self._icon.run(setup=_on_tray_ready)
+            self._icon.run_detached(setup=_on_tray_ready)
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                pass
         else:
             print("[WakeUp] Running in console mode. Press Ctrl+C to exit.")
             print("         Available profiles:", list(self.profiles.keys()))
