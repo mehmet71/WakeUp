@@ -237,17 +237,20 @@ _PRESET_NAMES = [
 
 def list_visible_windows() -> list[dict]:
     """
-    Returns list of visible, titled, non-tiny top-level windows.
+    Returns list of visible, titled, non-minimized, on-screen top-level windows.
     Each dict: {"hwnd": int, "title": str, "rect": (l, t, r, b), "pid": int}
-    Filters: skips empty titles, area < 10_000 px².
+    Filters: skips empty titles, area < 10_000 px², minimized windows, off-screen windows.
     """
     if not HAS_WIN32:
         return []
 
+    monitors = get_monitors()
     results = []
 
     def _cb(hwnd, _):
         if not win32gui.IsWindowVisible(hwnd):
+            return True
+        if win32gui.IsIconic(hwnd):
             return True
         title = win32gui.GetWindowText(hwnd)
         if not title:
@@ -255,6 +258,10 @@ def list_visible_windows() -> list[dict]:
         try:
             l, t, r, b = win32gui.GetWindowRect(hwnd)
             if (r - l) * (b - t) < 10_000:
+                return True
+            if not any(l < mr and r > ml and t < mb and b > mt
+                       for m in monitors
+                       for ml, mt, mr, mb in [m["rect"]]):
                 return True
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
             results.append({"hwnd": hwnd, "title": title, "rect": (l, t, r, b), "pid": pid})

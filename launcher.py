@@ -59,6 +59,8 @@ def launch_app(app: dict) -> Optional[int]:
     try:
         proc = subprocess.Popen(
             cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
             if hasattr(subprocess, "DETACHED_PROCESS") else 0,
         )
