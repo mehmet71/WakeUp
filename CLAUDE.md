@@ -50,6 +50,17 @@ profiles.json      ← User configuration (profiles + settings)
             "monitor": 0,
             "preset": "left-two-thirds"
           }
+        },
+        {
+          "name": "Chrome",
+          "path": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+          "args": [],
+          "browser": {
+            "restore_session": true,
+            "urls": ["https://music.youtube.com/watch?v=xxx"]
+          },
+          "delay": 0.5,
+          "window": { "monitor": 0, "preset": "right-third" }
         }
       ]
     }
@@ -62,6 +73,23 @@ profiles.json      ← User configuration (profiles + settings)
 - `x/y/w/h` (int) — explicit coords relative to monitor top-left
 - `monitor` (int) — 0 = primary, 1 = secondary
 - `maximize` (bool) — optional, forces maximize after positioning
+
+**Browser block (Chromium-based: Chrome, Edge, Brave):**
+Optional `browser` key on app entries. Only processed by the launcher when present; ignored for non-Chromium apps.
+
+- `restore_session` (bool, required) — `true` restores last session (no `--new-window`); `false` prepends `--new-window` for a fresh window.
+- `urls` (string[], optional) — URLs appended as positional args after flags.
+
+Behavior matrix:
+
+| `restore_session` | `urls`  | Result                                            |
+|-------------------|---------|---------------------------------------------------|
+| `true`            | present | Last session restored + URLs open as extra tabs   |
+| `true`            | absent  | Last session restored, nothing extra              |
+| `false`           | present | Fresh window with only the specified URLs        |
+| `false`           | absent  | Fresh empty window (`--new-window`)              |
+
+The existing `args` field is preserved and applied first (`--new-window` if any, then `args`, then `urls`).
 
 **Available presets:**
 `full`, `left-half`, `right-half`, `top-half`, `bottom-half`,

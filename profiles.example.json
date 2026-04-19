@@ -1,0 +1,122 @@
+{
+  "settings": {
+    "default_profile": "work",
+    "voice": {
+      "enabled": false,
+      "model_path": "models/vosk-model-small-en-us",
+      "sample_rate": 16000
+    }
+  },
+  "profiles": {
+    "work": {
+      "trigger_keywords": [
+        "wake up",
+        "start work",
+        "let's go"
+      ],
+      "hotkey": "ctrl+alt+w",
+      "message": "Good morning. Initializing work environment.",
+      "apps": [
+        {
+          "name": "VS Code",
+          "path": "%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe",
+          "args": ["C:/Projects/my-project"],
+          "delay": 0,
+          "window": {
+            "monitor": 0,
+            "preset": "left-two-thirds"
+          }
+        },
+        {
+          "name": "Chrome",
+          "path": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+          "args": [],
+          "delay": 0.5,
+          "window": {
+            "monitor": 0,
+            "preset": "right-third"
+          },
+          "browser": {
+            "restore_session": false,
+            "urls": ["https://github.com", "https://www.google.com"]
+          }
+        }
+      ]
+    },
+    "focus": {
+      "trigger_keywords": [
+        "focus mode",
+        "deep work",
+        "go deep"
+      ],
+      "hotkey": "ctrl+alt+f",
+      "message": "Focus mode. Minimizing distractions.",
+      "apps": [
+        {
+          "name": "VS Code",
+          "path": "%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe",
+          "args": [],
+          "delay": 0,
+          "window": {
+            "monitor": 0,
+            "preset": "full"
+          }
+        },
+        {
+          "name": "Spotify",
+          "path": "%APPDATA%/Spotify/Spotify.exe",
+          "args": [],
+          "delay": 0.5,
+          "window": {
+            "monitor": 0,
+            "preset": "bottom-right"
+          }
+        }
+      ]
+    },
+    "gaming": {
+      "trigger_keywords": [
+        "game time",
+        "gaming mode"
+      ],
+      "hotkey": "ctrl+alt+g",
+      "message": "Switching to gaming mode. Have fun.",
+      "apps": [
+        {
+          "name": "Steam",
+          "path": "C:/Program Files (x86)/Steam/steam.exe",
+          "args": [],
+          "delay": 0,
+          "window": {
+            "monitor": 0,
+            "preset": "full"
+          }
+        },
+        {
+          "name": "Discord",
+          "path": "%LOCALAPPDATA%/Discord/Update.exe",
+          "args": ["--processStart", "Discord.exe"],
+          "delay": 1.0,
+          "window": {
+            "monitor": 1,
+            "preset": "full"
+          }
+        },
+        {
+          "name": "Brave",
+          "path": "C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe",
+          "args": [],
+          "delay": 0.5,
+          "window": {
+            "monitor": 1,
+            "preset": "right-third"
+          },
+          "browser": {
+            "restore_session": true,
+            "urls": []
+          }
+        }
+      ]
+    }
+  }
+}

@@ -20,15 +20,16 @@ _JUNK_TITLES = {"Program Manager", "MSCTFIME", "Windows Input Experience"}
 
 _APP_TYPE_MAP = {
     "code.exe":    "vscode",
-    "chrome.exe":  "chrome",
-    "msedge.exe":  "chrome",
+    "chrome.exe":  "chromium",
+    "msedge.exe":  "chromium",
+    "brave.exe":   "chromium",
     "firefox.exe": "browser",
 }
 
 _DISPLAY_NAME_MAP = {
-    "vscode":  "VS Code",
-    "chrome":  "Chrome",
-    "browser": "Firefox",
+    "vscode":   "VS Code",
+    "chromium": "Chromium Browser",
+    "browser":  "Other Browser",
 }
 
 
@@ -55,10 +56,10 @@ def _generate_display_name(exe_path: "str | None", title: str) -> str:
 
 def _default_launch_behavior(app_type: str) -> str:
     defaults = {
-        "vscode":  "vscode_folder",
-        "chrome":  "chrome_urls",
-        "browser": "chrome_urls",
-        "generic": "plain",
+        "vscode":   "vscode_folder",
+        "chromium": "chrome_urls",
+        "browser":  "chrome_urls",
+        "generic":  "plain",
     }
     return defaults.get(app_type, "plain")
 
@@ -121,14 +122,20 @@ def draft_to_profile_app(draft: dict) -> dict:
     behavior = draft["launch_behavior"]
     details = draft.get("launch_details", {})
 
-    args_map = {
-        "plain":             [],
-        "vscode_folder":     [details.get("folder", "")],
-        "vscode_session":    [],
-        "chrome_urls":       ["--new-window"] + details.get("urls", []),
-        "chrome_new_window": ["--new-window"],
-    }
-    args = args_map.get(behavior, [])
+    args: list[str] = []
+    browser_block: dict | None = None
+
+    if behavior == "vscode_folder":
+        args = [details.get("folder", "")]
+    elif behavior == "vscode_session":
+        args = []
+    elif behavior == "chrome_urls":
+        browser_block = {
+            "restore_session": bool(details.get("restore_session", True)),
+            "urls": [str(u) for u in details.get("urls", [])],
+        }
+    elif behavior == "chrome_new_window":
+        browser_block = {"restore_session": False, "urls": []}
 
     window = draft["window"]
     if window.get("preset") is not None:
@@ -142,10 +149,13 @@ def draft_to_profile_app(draft: dict) -> dict:
             "h": window["h"],
         }
 
-    return {
+    app: dict = {
         "name": draft["name"],
         "path": draft["path"],
         "args": args,
         "delay": 0,
         "window": window_out,
     }
+    if browser_block is not None:
+        app["browser"] = browser_block
+    return app

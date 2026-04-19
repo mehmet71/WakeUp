@@ -35,3 +35,9 @@ model/
 # Environment / secrets
 .env
 .env.*
+
+# Superpowers plans and specs
+docs/superpowers/
+
+# Personal profile config (use profiles.example.json as a base)
+profiles.json

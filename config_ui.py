@@ -57,10 +57,10 @@ VIEW_ADVANCED        = "advanced"
 # ------------------------------------------------------------------ #
 
 _BEHAVIOR_OPTIONS = {
-    "vscode":  ["vscode_folder", "vscode_session", "plain"],
-    "chrome":  ["chrome_urls", "chrome_new_window"],
-    "browser": ["chrome_urls", "chrome_new_window"],
-    "generic": ["plain"],
+    "vscode":   ["vscode_folder", "vscode_session", "plain"],
+    "chromium": ["chrome_urls", "chrome_new_window"],
+    "browser":  ["chrome_urls", "chrome_new_window"],
+    "generic":  ["plain"],
 }
 
 _BEHAVIOR_LABELS = {
@@ -282,6 +282,10 @@ class AppDialog(tk.Toplevel):
                 "maximize": self.v_maximize.get(),
             }
         }
+        # Preserve browser block if the source app had one — the advanced
+        # dialog doesn't edit it, but must not silently drop it.
+        if "browser" in self.data:
+            self.result["browser"] = deepcopy(self.data["browser"])
         self.destroy()
 
 
@@ -807,15 +811,38 @@ class WakeUpConfigUI(tk.Tk):
                            width=9).grid(row=0, column=1, padx=(6, 0))
 
             elif behavior_key == "chrome_urls":
-                tk.Label(detail_frame, text="URLs (one per line)",
+                # Restore-session toggle row
+                tk.Label(detail_frame, text="Restore session",
                          bg=BG2, fg=FG2, font=FONT_SM).grid(
-                    row=0, column=0, sticky="nw", padx=(0, 12), pady=3)
+                    row=0, column=0, sticky="w", padx=(0, 12), pady=3)
+
+                current_restore = draft.get("launch_details", {}).get(
+                    "restore_session", True)
+                v_restore = tk.BooleanVar(value=bool(current_restore))
+
+                def _sync_restore(*_):
+                    draft.setdefault("launch_details", {})["restore_session"] = (
+                        v_restore.get()
+                    )
+
+                v_restore.trace_add("write", _sync_restore)
+                tk.Checkbutton(detail_frame, variable=v_restore,
+                               bg=BG2, fg=FG, selectcolor=BG3,
+                               activebackground=BG2, activeforeground=FG,
+                               text=" Reopen last-session tabs",
+                               font=FONT_SM).grid(
+                    row=0, column=1, sticky="w", pady=3)
+
+                # URLs text area
+                tk.Label(detail_frame, text="Extra URLs (one per line)",
+                         bg=BG2, fg=FG2, font=FONT_SM).grid(
+                    row=1, column=0, sticky="nw", padx=(0, 12), pady=3)
                 detail_frame.columnconfigure(1, weight=1)
 
                 existing_urls = draft.get("launch_details", {}).get("urls", [])
                 txt = dark_text(detail_frame, height=3, width=36)
                 txt.insert("1.0", "\n".join(existing_urls))
-                txt.grid(row=0, column=1, sticky="ew", pady=3)
+                txt.grid(row=1, column=1, sticky="ew", pady=3)
 
                 def _sync_urls(_event=None):
                     raw = txt.get("1.0", "end").strip()
@@ -825,6 +852,9 @@ class WakeUpConfigUI(tk.Tk):
 
                 txt.bind("<FocusOut>", _sync_urls)
                 txt.bind("<KeyRelease>", _sync_urls)
+
+                # Ensure initial default is stored even if user never touches the box
+                _sync_restore()
 
         def _on_behavior_change(_event=None):
             selected_label = v_behavior_label.get()

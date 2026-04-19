@@ -18,6 +18,25 @@ def _resolve_path(raw: str) -> str:
     return str(Path(os.path.expandvars(os.path.expanduser(raw))))
 
 
+def _build_launch_args(app: dict) -> list[str]:
+    """
+    Build the full command-line args list for an app entry (excluding the exe path).
+    Pure function — no side effects. Honors the optional `browser` block:
+      browser.restore_session == False  →  prepend "--new-window"
+      browser.urls                       →  appended as positional args
+    """
+    args = [str(a) for a in app.get("args", [])]
+
+    browser = app.get("browser")
+    if browser is not None:
+        if not browser.get("restore_session", True):
+            args = ["--new-window"] + args
+        urls = [str(u) for u in browser.get("urls", [])]
+        args = args + urls
+
+    return args
+
+
 def launch_app(app: dict) -> Optional[int]:
     """
     Launch a single app from its config dict. Returns PID or None on failure.
@@ -34,8 +53,7 @@ def launch_app(app: dict) -> Optional[int]:
         time.sleep(delay)
 
     exe_path = _resolve_path(app["path"])
-    args = [str(a) for a in app.get("args", [])]
-    cmd = [exe_path] + args
+    cmd = [exe_path] + _build_launch_args(app)
 
     name = app.get("name", Path(exe_path).stem)
     try:

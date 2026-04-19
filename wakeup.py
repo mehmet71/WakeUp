@@ -192,12 +192,20 @@ class WakeUp:
         self.audio.stop()
 
     def run(self):
+        print(f"[WakeUp] Starting. Profiles: {list(self.profiles.keys())}")
+        hotkeys = {n: p.get("hotkey") for n, p in self.profiles.items() if p.get("hotkey")}
+        if hotkeys:
+            print(f"[WakeUp] Hotkeys: {hotkeys}")
+        if self.keyword_map:
+            print(f"[WakeUp] Voice keywords: {list(self.keyword_map.keys())}")
+
         self._register_hotkeys()
         self.audio.start()
 
         atexit.register(self._shutdown)
 
         if HAS_TRAY:
+            print("[WakeUp] Tray icon active. Ctrl+C to exit.")
             self._icon = pystray.Icon(
                 "WakeUp",
                 create_tray_icon(),
