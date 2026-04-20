@@ -22,6 +22,7 @@ profiles.json      ← User configuration (profiles + settings)
 - **Voice uses Windows default mic.** VoiceListener opens on the system default input device via sounddevice. No device selection needed.
 - **Threading model.** Profile execution runs on a daemon thread. A `_busy` lock prevents double-triggers. Window arrangement is always async (own thread per app).
 - **Hotkeys use pynput** (not the `keyboard` library, which is unmaintained).
+- **Capture window filtering uses two layers:** `window_manager.list_visible_windows` applies the canonical Alt-Tab algorithm (cloaked-window check via `DwmGetWindowAttribute(DWMWA_CLOAKED)` + `GetAncestor`/`GetLastActivePopup` root-owner chain + `WS_EX_TOOLWINDOW`). `capture_service.capture_current_desktop` adds capture-specific exclusions: self-PID (WakeUp's own window) and `applicationframehost.exe` (UWP container). `GetLastActivePopup` is not in pywin32 — called via `ctypes.windll.user32`.
 
 ## profiles.json Schema
 

@@ -21,8 +21,16 @@ Or use explicit coordinates:
   "window": {"monitor": 0, "x": 100, "y": 50, "w": 900, "h": 600}
 """
 
+import ctypes
 import time
 from typing import Optional
+
+_user32 = ctypes.windll.user32
+_GetLastActivePopup = _user32.GetLastActivePopup
+_GetLastActivePopup.restype = ctypes.c_void_p
+
+_dwmapi = ctypes.windll.dwmapi
+_DWMWA_CLOAKED = 14
 
 try:
     import win32gui
@@ -251,6 +259,20 @@ def list_visible_windows() -> list[dict]:
         if not win32gui.IsWindowVisible(hwnd):
             return True
         if win32gui.IsIconic(hwnd):
+            return True
+        # Skip cloaked windows: UWP apps suspended in background are marked
+        # WS_VISIBLE by the OS but DWM doesn't draw them (TextInputHost, etc.)
+        cloaked = ctypes.c_int(0)
+        _dwmapi.DwmGetWindowAttribute(hwnd, _DWMWA_CLOAKED, ctypes.byref(cloaked), ctypes.sizeof(cloaked))
+        if cloaked.value:
+            return True
+        # Canonical Alt-Tab/taskbar filter: the window must be the last active
+        # popup of its root-owner chain and not a tool window.
+        root = win32gui.GetAncestor(hwnd, 3)  # GA_ROOTOWNER
+        if _GetLastActivePopup(root) != hwnd:
+            return True
+        ex_style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+        if (ex_style & win32con.WS_EX_TOOLWINDOW) and not (ex_style & win32con.WS_EX_APPWINDOW):
             return True
         title = win32gui.GetWindowText(hwnd)
         if not title:

@@ -18,6 +18,10 @@ from window_manager import (
 
 _JUNK_TITLES = {"Program Manager", "MSCTFIME", "Windows Input Experience"}
 
+# Windows host processes that create visible windows as a side effect of
+# running infrastructure, not as user-facing apps.
+_SYSTEM_HOST_EXES = {"applicationframehost.exe"}
+
 _APP_TYPE_MAP = {
     "code.exe":    "vscode",
     "chrome.exe":  "chromium",
@@ -68,6 +72,9 @@ def _default_launch_behavior(app_type: str) -> str:
 #  Public API                                                          #
 # ------------------------------------------------------------------ #
 
+_SELF_PID = os.getpid()
+
+
 def capture_current_desktop() -> list[dict]:
     """Snapshot visible windows into DraftApp dicts (Contract C1)."""
     monitors = get_monitors()
@@ -75,6 +82,9 @@ def capture_current_desktop() -> list[dict]:
     drafts = []
 
     for win in windows:
+        if win["pid"] == _SELF_PID:
+            continue
+
         title = win["title"]
 
         if title in _JUNK_TITLES:
@@ -85,6 +95,9 @@ def capture_current_desktop() -> list[dict]:
         l, t, r, b = rect
 
         exe_path = get_window_process_path(hwnd)
+
+        if exe_path and os.path.basename(os.path.normcase(exe_path)) in _SYSTEM_HOST_EXES:
+            continue
         app_type = _detect_app_type(exe_path, title)
         display_name = _generate_display_name(exe_path, title)
         launch_behavior = _default_launch_behavior(app_type)

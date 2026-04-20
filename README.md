@@ -109,7 +109,6 @@ For full control — raw `args`, exact pixel coordinates, per-app delays — cli
 
 - Chrome tabs are not auto-imported; use starter URLs in the review step instead
 - VS Code workspace is not auto-detected; choose the folder manually
-- Some background or system windows may appear in capture results — remove them during review
 
 ---
 
