@@ -4,6 +4,7 @@ Run with: python config_ui.py
 """
 
 import json
+import shlex
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
@@ -56,10 +57,12 @@ VIEW_ADVANCED        = "advanced"
 #  Launch behavior mapping (Contract C6)                              #
 # ------------------------------------------------------------------ #
 
+_CHROMIUM_BEHAVIORS = ["chrome_urls", "chrome_new_window"]
+
 _BEHAVIOR_OPTIONS = {
     "vscode":   ["vscode_folder", "vscode_session", "plain"],
-    "chromium": ["chrome_urls", "chrome_new_window"],
-    "browser":  ["chrome_urls", "chrome_new_window"],
+    "chromium": _CHROMIUM_BEHAVIORS,
+    "browser":  _CHROMIUM_BEHAVIORS,
     "generic":  ["plain"],
 }
 
@@ -146,7 +149,7 @@ def dark_text(parent, height=3, width=40) -> tk.Text:
     t = tk.Text(parent, height=height, width=width,
                 bg=BG3, fg=FG, insertbackground=FG,
                 font=FONT_SM, relief="flat", padx=8, pady=6,
-                wrap="word", bd=1, highlightthickness=1,
+                wrap="word", highlightthickness=1,
                 highlightbackground=BORDER, highlightcolor=ACCENT)
     return t
 
@@ -159,7 +162,6 @@ def icon_btn(parent, text, command, style="TButton", width=None):
 
 
 def card_frame(parent, **pack_kw) -> tk.Frame:
-    """Styled card panel. Caller can pass pack kwargs."""
     f = tk.Frame(parent, bg=BG2, padx=16, pady=12)
     if pack_kw:
         f.pack(**pack_kw)
@@ -268,7 +270,6 @@ class AppDialog(tk.Toplevel):
             return
 
         args_raw = self.v_args.get().strip()
-        import shlex
         args = shlex.split(args_raw) if args_raw else []
 
         self.result = {
@@ -566,34 +567,26 @@ class WakeUpConfigUI(tk.Tk):
 
         manual_lbl.bind("<Button-1>", _go_manual)
 
-    def _build_review(self):
-        # ── outer scrollable canvas ───────────────────────────────────
-        outer = tk.Frame(self._view_frame, bg=BG)
+    def _make_scroll_canvas(self, parent: tk.Frame) -> tk.Frame:
+        outer = tk.Frame(parent, bg=BG)
         outer.pack(fill="both", expand=True)
-
         canvas = tk.Canvas(outer, bg=BG, highlightthickness=0)
         scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
-
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
-
         scroll_frame = tk.Frame(canvas, bg=BG)
         win_id = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        scroll_frame.bind("<Configure>",
+                          lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>",
+                    lambda e: canvas.itemconfig(win_id, width=e.width))
+        canvas.bind_all("<MouseWheel>",
+                        lambda e: canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
+        return scroll_frame
 
-        def _on_frame_resize(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-
-        def _on_canvas_resize(event):
-            canvas.itemconfig(win_id, width=event.width)
-
-        scroll_frame.bind("<Configure>", _on_frame_resize)
-        canvas.bind("<Configure>", _on_canvas_resize)
-
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+    def _build_review(self):
+        scroll_frame = self._make_scroll_canvas(self._view_frame)
 
         # ── header ───────────────────────────────────────────────────
         header = tk.Frame(scroll_frame, bg=BG)
@@ -858,8 +851,7 @@ class WakeUpConfigUI(tk.Tk):
 
         def _on_behavior_change(_event=None):
             selected_label = v_behavior_label.get()
-            # Reverse lookup label → key
-            key = current_behavior
+            key = behavior_keys[0]
             for k, lbl in _BEHAVIOR_LABELS.items():
                 if lbl == selected_label:
                     key = k
@@ -873,8 +865,6 @@ class WakeUpConfigUI(tk.Tk):
         # Render initial detail widget
         _build_detail_widget(current_behavior)
 
-        return card
-
     def _build_mode_detail(self):
         # Allow entry with no profile when arriving from capture flow
         if self._draft_apps is None and (
@@ -886,25 +876,7 @@ class WakeUpConfigUI(tk.Tk):
 
         profile = self.profiles.get(self._current_profile, {}) if self._current_profile else {}
 
-        # ── outer scrollable canvas ───────────────────────────────────
-        outer = tk.Frame(self._view_frame, bg=BG)
-        outer.pack(fill="both", expand=True)
-
-        canvas = tk.Canvas(outer, bg=BG, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        scroll_frame = tk.Frame(canvas, bg=BG)
-        win_id = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-
-        scroll_frame.bind("<Configure>",
-                          lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>",
-                    lambda e: canvas.itemconfig(win_id, width=e.width))
-        canvas.bind_all("<MouseWheel>",
-                        lambda e: canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
+        scroll_frame = self._make_scroll_canvas(self._view_frame)
 
         container = tk.Frame(scroll_frame, bg=BG)
         container.pack(fill="both", expand=True, padx=32, pady=24)
@@ -1272,20 +1244,7 @@ class WakeUpConfigUI(tk.Tk):
             return
         name = list(self.profiles.keys())[sel[0]]
         self._current_profile = name
-        self._show_view(VIEW_MODE_DETAIL)
-
-    def _add_profile(self):
-        self._show_view(VIEW_NEW_MODE_CHOICE)
-
-    def _dupe_profile(self):
-        if not self._current_profile:
-            return
-        src = self._current_profile
-        name = self._unique_name(src + "-copy")
-        self.profiles[name] = deepcopy(self.profiles[src])
-        self._current_profile = name
-        self._refresh_profile_list(select=name)
-        self._mark_dirty()
+        self._draft_apps = None
         self._show_view(VIEW_MODE_DETAIL)
 
     def _delete_profile(self):
