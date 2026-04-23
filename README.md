@@ -78,7 +78,7 @@ A tray icon appears (bottom-right taskbar). Right-click for the menu.
 
 The fastest way to create a mode is to capture your current setup:
 
-1. Open the apps you want in this mode and arrange them on your monitors
+1. Open the apps you want in this mode, arrange them on your monitors, and make sure none are minimized (minimized windows are not captured)
 2. Open the Config Editor: `python config_ui.py`
 3. Click **+ New mode** → **Capture current setup**
 4. Click **Capture now**
